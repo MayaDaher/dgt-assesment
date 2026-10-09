@@ -13,7 +13,9 @@ class HelloWorldTest extends TestCase
         $response
             ->assertOk()
             ->assertExactJson([
+                'success' => true,
                 'message' => 'Hello World',
+                'data' => null,
             ]);
     }
 }
