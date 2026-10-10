@@ -16,9 +16,10 @@ final class ApiResponse
     public static function success(mixed $data = null, ?string $message = null, int $status = 200): JsonResponse
     {
         if ($data instanceof JsonResource) {
-            return $data
-                ->additional(['success' => true, 'message' => $message])
-                ->response()
+            $response = $data->response();
+
+            return $response
+                ->setData(['success' => true, 'message' => $message] + $response->getData(true))
                 ->setStatusCode($status);
         }
 
