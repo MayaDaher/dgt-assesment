@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\HelloWorldController;
 use App\Http\Controllers\Api\ProductController;
@@ -16,6 +17,14 @@ Route::controller(ProductController::class)->prefix('products')->name('products.
 Route::controller(CategoryController::class)->prefix('categories')->name('categories.')->group(function () {
     Route::get('/', 'index')->name('index');
     Route::get('/{slug}', 'show')->name('show');
+});
+
+Route::middleware('auth:sanctum')->controller(CartController::class)->prefix('cart')->name('cart.')->group(function () {
+    Route::get('/', 'show')->name('show');
+    Route::delete('/', 'clear')->name('clear');
+    Route::post('/items', 'store')->name('items.store');
+    Route::patch('/items/{item}', 'update')->whereNumber('item')->name('items.update');
+    Route::delete('/items/{item}', 'destroy')->whereNumber('item')->name('items.destroy');
 });
 
 Route::prefix('auth')->name('auth.')->controller(AuthController::class)->group(function () {

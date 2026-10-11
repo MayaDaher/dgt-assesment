@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Http\Exceptions\HttpResponseException;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Str;
 use Illuminate\Validation\ValidationException;
 use Symfony\Component\HttpFoundation\Response;
 use Symfony\Component\HttpKernel\Exception\AccessDeniedHttpException;
@@ -80,7 +81,7 @@ final class ApiExceptionRenderer
 
         if ($previous instanceof ModelNotFoundException) {
             return ApiResponse::error(
-                message: class_basename($previous->getModel()).' not found.',
+                message: ucfirst(strtolower(Str::headline(class_basename($previous->getModel())))).' not found.',
                 code: 'RESOURCE_NOT_FOUND',
                 status: Response::HTTP_NOT_FOUND,
             );
