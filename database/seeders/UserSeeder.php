@@ -10,12 +10,18 @@ class UserSeeder extends Seeder
 {
     public const DEFAULT_PASSWORD = 'Password123';
 
+    private const RANDOM_CUSTOMERS = 5;
+
     public function run(): void
     {
         $this->upsertUser('Admin', 'admin@example.com', UserRole::Admin);
         $this->upsertUser('Demo Customer', 'customer@example.com', UserRole::Customer);
 
-        User::factory()->count(5)->create();
+        $missing = self::RANDOM_CUSTOMERS - User::query()->whereNotIn('email', ['admin@example.com', 'customer@example.com'])->count();
+
+        if ($missing > 0) {
+            User::factory()->count($missing)->create();
+        }
     }
 
     private function upsertUser(string $name, string $email, UserRole $role): void

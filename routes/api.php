@@ -1,10 +1,22 @@
 <?php
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\HelloWorldController;
+use App\Http\Controllers\Api\ProductController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/hello', HelloWorldController::class);
+
+Route::controller(ProductController::class)->prefix('products')->name('products.')->group(function () {
+    Route::get('/', 'index')->name('index');
+    Route::get('/{product}', 'show')->whereNumber('product')->name('show');
+});
+
+Route::controller(CategoryController::class)->prefix('categories')->name('categories.')->group(function () {
+    Route::get('/', 'index')->name('index');
+    Route::get('/{slug}', 'show')->name('show');
+});
 
 Route::prefix('auth')->name('auth.')->controller(AuthController::class)->group(function () {
     Route::middleware('throttle:auth')->group(function () {
