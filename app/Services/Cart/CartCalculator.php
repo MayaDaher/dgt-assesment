@@ -3,8 +3,10 @@
 namespace App\Services\Cart;
 
 use App\Enums\CartLineIssue;
+use App\Exceptions\Promotion\PromotionException;
 use App\Models\Cart;
 use App\Models\CartItem;
+use App\Services\Promotions\PromotionEligibility;
 use App\Support\Money;
 
 /**
@@ -14,9 +16,15 @@ use App\Support\Money;
  */
 class CartCalculator
 {
-    public function summarize(Cart $cart): CartSummary
+    public function __construct(private readonly PromotionEligibility $eligibility) {}
+
+    /**
+     * The applied promotion is re-validated on every call: if it expired or the cart no longer
+     * meets its minimum, the discount drops to zero and the error is returned with the summary.
+     */
+    public function summarize(Cart $cart, bool $withPromotion = true): CartSummary
     {
-        $cart->loadMissing('items.product');
+        $cart->loadMissing(['items.product', 'promotion', 'user']);
 
         $lines = $cart->items
             ->sortBy('id')
@@ -35,7 +43,19 @@ class CartCalculator
             }
         }
 
-        return new CartSummary($cart, $lines, $subtotal, $totalQuantity);
+        $promotion = $withPromotion ? $cart->promotion : null;
+        $discount = 0;
+        $promotionError = null;
+
+        if ($promotion !== null) {
+            try {
+                $discount = $this->eligibility->check($promotion, $cart->user, $subtotal);
+            } catch (PromotionException $e) {
+                $promotionError = $e;
+            }
+        }
+
+        return new CartSummary($cart, $lines, $subtotal, $totalQuantity, $promotion, $discount, $promotionError);
     }
 
     private function line(CartItem $item): CartLine

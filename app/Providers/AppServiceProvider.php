@@ -42,5 +42,9 @@ class AppServiceProvider extends ServiceProvider
             Limit::perMinute(5)->by('auth:email:'.mb_strtolower((string) $request->input('email')).'|'.$request->ip()),
             Limit::perMinute(20)->by('auth:ip:'.$request->ip()),
         ]);
+
+        // Slows down guessing of promotion codes.
+        RateLimiter::for('promotions', fn (Request $request) => Limit::perMinute(10)
+            ->by('promotions:'.($request->user()?->id ?? $request->ip())));
     }
 }

@@ -5,6 +5,7 @@ use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
 use App\Http\Controllers\Api\HelloWorldController;
 use App\Http\Controllers\Api\ProductController;
+use App\Http\Controllers\Api\PromotionController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/hello', HelloWorldController::class);
@@ -25,7 +26,14 @@ Route::middleware('auth:sanctum')->controller(CartController::class)->prefix('ca
     Route::post('/items', 'store')->name('items.store');
     Route::patch('/items/{item}', 'update')->whereNumber('item')->name('items.update');
     Route::delete('/items/{item}', 'destroy')->whereNumber('item')->name('items.destroy');
+
+    Route::post('/promotion', 'applyPromotion')->middleware('throttle:promotions')->name('promotion.apply');
+    Route::delete('/promotion', 'removePromotion')->name('promotion.remove');
 });
+
+Route::middleware(['auth:sanctum', 'throttle:promotions'])
+    ->post('/promotions/validate', [PromotionController::class, 'validateCode'])
+    ->name('promotions.validate');
 
 Route::prefix('auth')->name('auth.')->controller(AuthController::class)->group(function () {
     Route::middleware('throttle:auth')->group(function () {

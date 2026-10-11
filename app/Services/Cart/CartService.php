@@ -2,12 +2,16 @@
 
 namespace App\Services\Cart;
 
+use App\Exceptions\Cart\EmptyCartException;
 use App\Exceptions\Catalog\ProductUnavailableException;
 use App\Exceptions\Inventory\InsufficientStockException;
+use App\Exceptions\Promotion\PromotionException;
 use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Product;
 use App\Models\User;
+use App\Services\Promotions\PromotionEligibility;
+use App\Services\Promotions\PromotionPreview;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\ValidationException;
@@ -21,7 +25,10 @@ use Illuminate\Validation\ValidationException;
  */
 class CartService
 {
-    public function __construct(private readonly CartCalculator $calculator) {}
+    public function __construct(
+        private readonly CartCalculator $calculator,
+        private readonly PromotionEligibility $eligibility,
+    ) {}
 
     public function summary(User $user): CartSummary
     {
@@ -99,7 +106,54 @@ class CartService
 
     public function clear(User $user): void
     {
-        $this->cartFor($user)->items()->delete();
+        $cart = $this->cartFor($user);
+
+        DB::transaction(function () use ($cart) {
+            $cart->items()->delete();
+            $cart->update(['promotion_id' => null]);
+        });
+    }
+
+    /**
+     * Checks a code against the current cart without applying it.
+     *
+     * @throws EmptyCartException|PromotionException
+     */
+    public function previewPromotion(User $user, string $code): PromotionPreview
+    {
+        $summary = $this->calculator->summarize($this->cartFor($user), withPromotion: false);
+
+        if ($summary->isEmpty()) {
+            throw new EmptyCartException;
+        }
+
+        $promotion = $this->eligibility->findByCode($code);
+        $discount = $this->eligibility->check($promotion, $user, $summary->subtotalCents);
+
+        return new PromotionPreview($promotion, $summary->subtotalCents, $discount);
+    }
+
+    /**
+     * Validates the code and attaches it to the cart (replacing any previous code).
+     *
+     * @throws EmptyCartException|PromotionException
+     */
+    public function applyPromotion(User $user, string $code): void
+    {
+        $cart = $this->cartFor($user);
+
+        DB::transaction(function () use ($cart, $user, $code) {
+            $this->lock($cart);
+
+            $preview = $this->previewPromotion($user, $code);
+
+            $cart->update(['promotion_id' => $preview->promotion->id]);
+        });
+    }
+
+    public function removePromotion(User $user): void
+    {
+        $this->cartFor($user)->update(['promotion_id' => null]);
     }
 
     private function existingCartOrFail(User $user): Cart

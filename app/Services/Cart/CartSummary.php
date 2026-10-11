@@ -2,7 +2,9 @@
 
 namespace App\Services\Cart;
 
+use App\Exceptions\Promotion\PromotionException;
 use App\Models\Cart;
+use App\Models\Promotion;
 
 final readonly class CartSummary
 {
@@ -14,7 +16,15 @@ final readonly class CartSummary
         public array $lines,
         public int $subtotalCents,
         public int $totalQuantity,
+        public ?Promotion $promotion = null,
+        public int $discountCents = 0,
+        public ?PromotionException $promotionError = null,
     ) {}
+
+    public function totalCents(): int
+    {
+        return $this->subtotalCents - $this->discountCents;
+    }
 
     public function isEmpty(): bool
     {
@@ -23,6 +33,10 @@ final readonly class CartSummary
 
     public function hasIssues(): bool
     {
+        if ($this->promotionError !== null) {
+            return true;
+        }
+
         foreach ($this->lines as $line) {
             if (! $line->isPurchasable()) {
                 return true;

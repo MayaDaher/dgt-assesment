@@ -22,6 +22,7 @@ class Cart extends Model
      */
     protected $fillable = [
         'user_id',
+        'promotion_id',
     ];
 
     /**
@@ -38,6 +39,16 @@ class Cart extends Model
     public function items(): HasMany
     {
         return $this->hasMany(CartItem::class);
+    }
+
+    /**
+     * Includes soft-deleted promotions so the cart can report that the code is no longer valid.
+     *
+     * @return BelongsTo<Promotion, $this>
+     */
+    public function promotion(): BelongsTo
+    {
+        return $this->belongsTo(Promotion::class)->withTrashed();
     }
 
     public function isEmpty(): bool

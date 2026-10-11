@@ -5,6 +5,7 @@ namespace App\Http\Controllers\Api;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\Cart\AddCartItemRequest;
 use App\Http\Requests\Cart\UpdateCartItemRequest;
+use App\Http\Requests\Promotions\PromotionCodeRequest;
 use App\Http\Resources\CartResource;
 use App\Http\Responses\ApiResponse;
 use App\Services\Cart\CartService;
@@ -48,6 +49,20 @@ class CartController extends Controller
         $this->cart->clear($request->user());
 
         return $this->cartResponse($request, 'Cart cleared.');
+    }
+
+    public function applyPromotion(PromotionCodeRequest $request): JsonResponse
+    {
+        $this->cart->applyPromotion($request->user(), $request->code());
+
+        return $this->cartResponse($request, 'Promotion code applied.');
+    }
+
+    public function removePromotion(Request $request): JsonResponse
+    {
+        $this->cart->removePromotion($request->user());
+
+        return $this->cartResponse($request, 'Promotion code removed.');
     }
 
     private function cartResponse(Request $request, ?string $message = null, int $status = 200): JsonResponse

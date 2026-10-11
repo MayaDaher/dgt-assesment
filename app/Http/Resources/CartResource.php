@@ -26,10 +26,37 @@ class CartResource extends JsonResource
             'items_count' => count($summary->lines),
             'total_quantity' => $summary->totalQuantity,
             'subtotal' => Money::format($summary->subtotalCents),
-            'total' => Money::format($summary->subtotalCents),
+            'promotion' => $this->promotion($summary),
+            'discount' => Money::format($summary->discountCents),
+            'total' => Money::format($summary->totalCents()),
             'has_issues' => $summary->hasIssues(),
             'checkout_ready' => $summary->isCheckoutReady(),
             'updated_at' => $summary->cart->updated_at?->toIso8601String(),
+        ];
+    }
+
+    /**
+     * @return array<string, mixed>|null
+     */
+    private function promotion(CartSummary $summary): ?array
+    {
+        if ($summary->promotion === null) {
+            return null;
+        }
+
+        $error = $summary->promotionError;
+
+        return [
+            'code' => $summary->promotion->code,
+            'description' => $summary->promotion->description,
+            'type' => $summary->promotion->type->value,
+            'value' => $summary->promotion->value,
+            'is_valid' => $error === null,
+            'error' => $error === null ? null : [
+                'code' => $error->errorCode(),
+                'message' => $error->getMessage(),
+                'details' => $error->details() ?: null,
+            ],
         ];
     }
 
