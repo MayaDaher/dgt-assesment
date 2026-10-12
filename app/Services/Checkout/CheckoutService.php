@@ -23,6 +23,7 @@ use App\Services\Cart\CartSummary;
 use App\Services\Promotions\PromotionEligibility;
 use App\Support\Money;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
+use Illuminate\Database\UniqueConstraintViolationException;
 use Illuminate\Support\Collection;
 use Illuminate\Support\Facades\DB;
 
@@ -44,38 +45,62 @@ class CheckoutService
     {
         $key = filled($idempotencyKey) ? trim((string) $idempotencyKey) : null;
 
-        return DB::transaction(function () use ($user, $key) {
-            $cart = Cart::query()->where('user_id', $user->id)->lockForUpdate()->first();
+        try {
+            return DB::transaction(function () use ($user, $key) {
+                $cart = Cart::query()->where('user_id', $user->id)->lockForUpdate()->first();
 
-            if ($key !== null) {
-                $existing = Order::query()
-                    ->where('user_id', $user->id)
-                    ->where('idempotency_key', $key)
-                    ->with('items')
-                    ->first();
+                $replayed = $this->existingOrder($user, $key);
 
-                if ($existing !== null) {
-                    return new CheckoutResult($existing, replayed: true);
+                if ($replayed !== null) {
+                    return new CheckoutResult($replayed, replayed: true);
                 }
+
+                if ($cart === null || $cart->items()->doesntExist()) {
+                    throw new EmptyCartException;
+                }
+
+                $summary = $this->summarizeLockedCart($cart, $user);
+                $this->assertReady($summary);
+
+                $this->decrementStock($summary);
+                $this->consumePromotion($summary, $user);
+
+                $order = $this->createOrder($summary, $user, $key);
+
+                $cart->items()->delete();
+                $cart->update(['promotion_id' => null]);
+
+                return new CheckoutResult($order->load('items'));
+            });
+        } catch (UniqueConstraintViolationException $exception) {
+            // Two retries with the same key can both pass the SELECT and then collide on insert.
+            // The failed transaction is rolled back (stock is not taken twice); return the winner.
+            $replayed = $this->existingOrder($user, $key);
+
+            if ($replayed !== null && $this->isIdempotencyCollision($exception)) {
+                return new CheckoutResult($replayed, replayed: true);
             }
 
-            if ($cart === null || $cart->items()->doesntExist()) {
-                throw new EmptyCartException;
-            }
+            throw $exception;
+        }
+    }
 
-            $summary = $this->summarizeLockedCart($cart, $user);
-            $this->assertReady($summary);
+    private function existingOrder(User $user, ?string $key): ?Order
+    {
+        if ($key === null) {
+            return null;
+        }
 
-            $this->decrementStock($summary);
-            $this->consumePromotion($summary, $user);
+        return Order::query()
+            ->where('user_id', $user->id)
+            ->where('idempotency_key', $key)
+            ->with('items')
+            ->first();
+    }
 
-            $order = $this->createOrder($summary, $user, $key);
-
-            $cart->items()->delete();
-            $cart->update(['promotion_id' => null]);
-
-            return new CheckoutResult($order->load('items'));
-        });
+    private function isIdempotencyCollision(UniqueConstraintViolationException $exception): bool
+    {
+        return str_contains($exception->getMessage(), 'idempotency_key');
     }
 
     private function summarizeLockedCart(Cart $cart, User $user): CartSummary
