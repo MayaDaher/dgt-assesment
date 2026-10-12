@@ -6,6 +6,7 @@ use App\Enums\CartLineIssue;
 use App\Enums\OrderStatus;
 use App\Enums\ProductStatus;
 use App\Enums\PromotionError;
+use App\Events\OrderPlaced;
 use App\Exceptions\Cart\CartNotReadyException;
 use App\Exceptions\Cart\EmptyCartException;
 use App\Exceptions\Catalog\ProductUnavailableException;
@@ -46,7 +47,7 @@ class CheckoutService
         $key = filled($idempotencyKey) ? trim((string) $idempotencyKey) : null;
 
         try {
-            return DB::transaction(function () use ($user, $key) {
+            $result = DB::transaction(function () use ($user, $key) {
                 $cart = Cart::query()->where('user_id', $user->id)->lockForUpdate()->first();
 
                 $replayed = $this->existingOrder($user, $key);
@@ -83,6 +84,12 @@ class CheckoutService
 
             throw $exception;
         }
+
+        if (! $result->replayed) {
+            OrderPlaced::dispatch($result->order->id);
+        }
+
+        return $result;
     }
 
     private function existingOrder(User $user, ?string $key): ?Order
