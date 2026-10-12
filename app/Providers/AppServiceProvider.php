@@ -6,6 +6,7 @@ use App\Events\OrderPlaced;
 use App\Listeners\SendOrderPlacedNotification;
 use App\Models\Category;
 use App\Models\Product;
+use App\Observers\ProductObserver;
 use App\Services\Catalog\CatalogCache;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -32,6 +33,8 @@ class AppServiceProvider extends ServiceProvider
         $this->configurePasswordRules();
         $this->configureRateLimiting();
         $this->invalidateCatalogCacheOnWrite();
+
+        Product::observe(ProductObserver::class);
 
         Event::listen(OrderPlaced::class, SendOrderPlacedNotification::class);
     }

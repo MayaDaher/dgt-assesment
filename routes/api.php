@@ -1,6 +1,8 @@
 <?php
 
 use App\Http\Controllers\Api\Admin\CategoryController as AdminCategoryController;
+use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
+use App\Http\Controllers\Api\Admin\ProductAuditController as AdminProductAuditController;
 use App\Http\Controllers\Api\Admin\ProductController as AdminProductController;
 use App\Http\Controllers\Api\Admin\PromotionController as AdminPromotionController;
 use App\Http\Controllers\Api\AuthController;
@@ -61,7 +63,17 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->name('admin.
     Route::post('/products/{product}/restore', [AdminProductController::class, 'restore'])
         ->whereNumber('product')
         ->name('products.restore');
+    Route::get('/products/{product}/audits', [AdminProductAuditController::class, 'index'])
+        ->whereNumber('product')
+        ->name('products.audits');
+    Route::get('/audits', [AdminProductAuditController::class, 'indexAll'])->name('audits.index');
     Route::apiResource('promotions', AdminPromotionController::class);
+
+    Route::controller(AdminOrderController::class)->prefix('orders')->name('orders.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::get('/{order}', 'show')->whereNumber('order')->name('show');
+        Route::patch('/{order}', 'update')->whereNumber('order')->name('update');
+    });
 });
 
 Route::prefix('auth')->name('auth.')->controller(AuthController::class)->group(function () {

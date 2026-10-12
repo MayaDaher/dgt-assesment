@@ -11,6 +11,7 @@ use App\Http\Responses\ApiResponse;
 use App\Models\Product;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Validation\Rule;
 
 class ProductController extends Controller
@@ -48,9 +49,14 @@ class ProductController extends Controller
 
     public function update(UpdateProductRequest $request, Product $product): JsonResponse
     {
-        $product->update($request->validated());
+        $updated = DB::transaction(function () use ($request, $product) {
+            $locked = Product::query()->whereKey($product->id)->lockForUpdate()->firstOrFail();
+            $locked->update($request->validated());
 
-        return ApiResponse::success(new ProductResource($product->fresh()->load('category')), 'Product updated.');
+            return $locked->fresh()->load('category');
+        });
+
+        return ApiResponse::success(new ProductResource($updated), 'Product updated.');
     }
 
     public function destroy(Product $product): JsonResponse

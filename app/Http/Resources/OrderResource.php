@@ -20,6 +20,10 @@ class OrderResource extends JsonResource
             'id' => $this->id,
             'order_number' => $this->order_number,
             'status' => $this->status->value,
+            'customer' => $this->when(
+                $this->relationLoaded('user'),
+                fn () => $this->user === null ? null : new UserResource($this->user),
+            ),
             'items' => OrderItemResource::collection($this->whenLoaded('items')),
             'items_count' => $this->whenLoaded('items', fn () => $this->items->count()),
             'subtotal' => $this->subtotal,

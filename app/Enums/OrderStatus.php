@@ -27,6 +27,28 @@ enum OrderStatus: string
     }
 
     /**
+     * Forward-only fulfilment path used by admins. Cancellation is not included:
+     * that path restores stock and must go through POST /api/orders/{order}/cancel.
+     *
+     * @return list<self>
+     */
+    public function allowedAdminTransitions(): array
+    {
+        return match ($this) {
+            self::Pending => [self::Paid],
+            self::Paid => [self::Processing],
+            self::Processing => [self::Shipped],
+            self::Shipped => [self::Delivered],
+            self::Delivered, self::Cancelled => [],
+        };
+    }
+
+    public function canTransitionTo(self $next): bool
+    {
+        return in_array($next, $this->allowedAdminTransitions(), true);
+    }
+
+    /**
      * @return list<string>
      */
     public static function values(): array

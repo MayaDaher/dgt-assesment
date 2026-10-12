@@ -84,6 +84,14 @@ class User extends Authenticatable
         return $this->hasMany(Order::class);
     }
 
+    /**
+     * @return HasMany<ProductAudit, $this>
+     */
+    public function productAudits(): HasMany
+    {
+        return $this->hasMany(ProductAudit::class);
+    }
+
     public function hasRole(UserRole ...$roles): bool
     {
         return in_array($this->role, $roles, true);
