@@ -8,6 +8,7 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\Promotion;
 use App\Models\PromotionUsage;
+use App\Services\Catalog\CatalogCache;
 use Illuminate\Support\Facades\DB;
 
 /**
@@ -22,9 +23,11 @@ use Illuminate\Support\Facades\DB;
  */
 class CancelOrderService
 {
+    public function __construct(private readonly CatalogCache $catalogCache) {}
+
     public function cancel(Order $order): CancelOrderResult
     {
-        return DB::transaction(function () use ($order) {
+        $result = DB::transaction(function () use ($order) {
             /** @var Order $locked */
             $locked = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
 
@@ -60,6 +63,12 @@ class CancelOrderService
 
             return new CancelOrderResult($locked->fresh()->loadMissing('items'));
         });
+
+        if (! $result->replayed) {
+            $this->catalogCache->bump();
+        }
+
+        return $result;
     }
 
     private function restoreStock(Order $order): void

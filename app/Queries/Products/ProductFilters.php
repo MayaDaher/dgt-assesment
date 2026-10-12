@@ -20,5 +20,6 @@ final readonly class ProductFilters
         public ?Category $category = null,
         public ProductSort $sort = ProductSort::DEFAULT,
         public int $perPage = self::DEFAULT_PER_PAGE,
+        public int $page = 1,
     ) {}
 }

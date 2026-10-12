@@ -21,6 +21,7 @@ use App\Models\User;
 use App\Services\Cart\CartCalculator;
 use App\Services\Cart\CartLine;
 use App\Services\Cart\CartSummary;
+use App\Services\Catalog\CatalogCache;
 use App\Services\Promotions\PromotionEligibility;
 use App\Support\Money;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -40,6 +41,7 @@ class CheckoutService
     public function __construct(
         private readonly CartCalculator $calculator,
         private readonly PromotionEligibility $eligibility,
+        private readonly CatalogCache $catalogCache,
     ) {}
 
     public function place(User $user, ?string $idempotencyKey = null): CheckoutResult
@@ -87,6 +89,7 @@ class CheckoutService
 
         if (! $result->replayed) {
             OrderPlaced::dispatch($result->order->id);
+            $this->catalogCache->bump();
         }
 
         return $result;

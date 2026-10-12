@@ -79,6 +79,7 @@ class ListProductsRequest extends FormRequest
             category: isset($data['category']) ? Category::query()->where('slug', $data['category'])->first() : null,
             sort: isset($data['sort']) ? ProductSort::from($data['sort']) : ProductSort::DEFAULT,
             perPage: (int) ($data['per_page'] ?? ProductFilters::DEFAULT_PER_PAGE),
+            page: (int) ($data['page'] ?? 1),
         );
     }
 }

@@ -4,6 +4,9 @@ namespace App\Providers;
 
 use App\Events\OrderPlaced;
 use App\Listeners\SendOrderPlacedNotification;
+use App\Models\Category;
+use App\Models\Product;
+use App\Services\Catalog\CatalogCache;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
@@ -28,6 +31,7 @@ class AppServiceProvider extends ServiceProvider
     {
         $this->configurePasswordRules();
         $this->configureRateLimiting();
+        $this->invalidateCatalogCacheOnWrite();
 
         Event::listen(OrderPlaced::class, SendOrderPlacedNotification::class);
     }
@@ -55,5 +59,16 @@ class AppServiceProvider extends ServiceProvider
         // Checkout and cancel lock inventory rows; cap retries per customer.
         RateLimiter::for('checkout', fn (Request $request) => Limit::perMinute(10)
             ->by('checkout:'.($request->user()?->id ?? $request->ip())));
+    }
+
+    private function invalidateCatalogCacheOnWrite(): void
+    {
+        $bump = fn () => app(CatalogCache::class)->bump();
+
+        Product::saved($bump);
+        Product::deleted($bump);
+        Product::restored($bump);
+        Category::saved($bump);
+        Category::deleted($bump);
     }
 }
