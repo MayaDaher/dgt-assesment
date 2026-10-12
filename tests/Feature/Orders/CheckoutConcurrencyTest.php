@@ -17,9 +17,10 @@ use Tests\TestCase;
 /**
  * Stock safety for the brief's concurrency scenario (stock 5, buyers wanting 4 and 3).
  *
- * Feature tests run sequentially. The production guarantee is the combination of
- * `lockForUpdate` (in product-id order) and the guarded decrement
- * `WHERE stock_quantity >= quantity`, which these cases exercise by overlapping carts.
+ * Adding to a cart now reserves units (see StockReservationTest). These cases still
+ * cover checkout as the last line of defence: factory-built overlapping carts without
+ * a hold cannot push `stock_quantity` below zero because of `lockForUpdate` plus the
+ * guarded decrement `WHERE stock_quantity >= quantity`.
  */
 class CheckoutConcurrencyTest extends TestCase
 {
@@ -34,6 +35,31 @@ class CheckoutConcurrencyTest extends TestCase
         CartItem::factory()->for($cart)->for($product)->create(['quantity' => $quantity]);
 
         return [$user, $cart];
+    }
+
+    public function test_the_second_buyer_is_blocked_at_add_to_cart_when_the_first_reserved_the_stock(): void
+    {
+        $product = Product::factory()->priced('120.00')->withStock(5)->create(['name' => 'Limited Edition Sneakers']);
+        $buyerA = User::factory()->create();
+        $buyerB = User::factory()->create();
+
+        Sanctum::actingAs($buyerA);
+        $this->postJson('/api/cart/items', ['product_id' => $product->id, 'quantity' => 4])->assertCreated();
+
+        Sanctum::actingAs($buyerB);
+        $this->postJson('/api/cart/items', ['product_id' => $product->id, 'quantity' => 3])
+            ->assertConflict()
+            ->assertJsonPath('code', 'INSUFFICIENT_STOCK')
+            ->assertJsonPath('details.available_quantity', 1);
+
+        Sanctum::actingAs($buyerA);
+        $this->postJson('/api/checkout')->assertCreated();
+        $this->assertSame(1, $product->fresh()->stock_quantity);
+
+        Sanctum::actingAs($buyerB);
+        $this->postJson('/api/cart/items', ['product_id' => $product->id, 'quantity' => 3])
+            ->assertConflict()
+            ->assertJsonPath('details.available_quantity', 1);
     }
 
     public function test_overlapping_purchases_never_make_stock_negative(): void

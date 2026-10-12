@@ -3,9 +3,12 @@
 namespace Tests\Feature\Auth;
 
 use App\Enums\UserRole;
+use App\Models\Cart;
+use App\Models\Product;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\Hash;
+use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
 
 class AuthenticationTest extends TestCase
@@ -154,6 +157,67 @@ class AuthenticationTest extends TestCase
 
         $this->app['auth']->forgetGuards();
         $this->withToken($current)->getJson('/api/auth/me')->assertUnauthorized();
+    }
+
+    public function test_register_adopts_the_guest_cart(): void
+    {
+        $product = Product::factory()->priced('10.00')->withStock(5)->create();
+        $token = $this->getJson('/api/cart')->json('data.cart_token');
+
+        $this->withHeaders(['X-Cart-Token' => $token])
+            ->postJson('/api/cart/items', ['product_id' => $product->id, 'quantity' => 2])
+            ->assertCreated();
+
+        $response = $this->withHeaders(['X-Cart-Token' => $token])->postJson('/api/auth/register', [
+            'name' => 'Guest Buyer',
+            'email' => 'guest-buyer@example.com',
+            'password' => self::PASSWORD,
+            'password_confirmation' => self::PASSWORD,
+        ])->assertCreated();
+
+        $this->withToken($response->json('data.access_token'))
+            ->getJson('/api/cart')
+            ->assertOk()
+            ->assertJsonPath('data.is_guest', false)
+            ->assertJsonPath('data.cart_token', null)
+            ->assertJsonPath('data.items.0.quantity', 2)
+            ->assertJsonPath('data.items.0.product.id', $product->id);
+
+        $this->assertDatabaseMissing('carts', ['token' => $token]);
+        $this->assertSame(1, Cart::query()->where('user_id', User::query()->where('email', 'guest-buyer@example.com')->value('id'))->count());
+    }
+
+    public function test_login_merges_the_guest_cart_into_the_existing_user_cart(): void
+    {
+        $user = User::factory()->create(['email' => 'returning@example.com', 'password' => self::PASSWORD]);
+        $keep = Product::factory()->priced('8.00')->withStock(10)->create();
+        $shared = Product::factory()->priced('12.00')->withStock(10)->create();
+        $guestOnly = Product::factory()->priced('5.00')->withStock(10)->create();
+
+        Sanctum::actingAs($user);
+        $this->postJson('/api/cart/items', ['product_id' => $keep->id, 'quantity' => 1])->assertCreated();
+        $this->postJson('/api/cart/items', ['product_id' => $shared->id, 'quantity' => 1])->assertCreated();
+        $this->app['auth']->forgetGuards();
+
+        $token = $this->getJson('/api/cart')->json('data.cart_token');
+        $this->withHeaders(['X-Cart-Token' => $token])
+            ->postJson('/api/cart/items', ['product_id' => $shared->id, 'quantity' => 2])
+            ->assertCreated();
+        $this->withHeaders(['X-Cart-Token' => $token])
+            ->postJson('/api/cart/items', ['product_id' => $guestOnly->id, 'quantity' => 1])
+            ->assertCreated();
+
+        $response = $this->withHeaders(['X-Cart-Token' => $token])->postJson('/api/auth/login', [
+            'email' => 'returning@example.com',
+            'password' => self::PASSWORD,
+        ])->assertOk();
+
+        $items = collect($this->withToken($response->json('data.access_token'))->getJson('/api/cart')->json('data.items'));
+
+        $this->assertSame(1, $items->firstWhere('product.id', $keep->id)['quantity']);
+        $this->assertSame(3, $items->firstWhere('product.id', $shared->id)['quantity']);
+        $this->assertSame(1, $items->firstWhere('product.id', $guestOnly->id)['quantity']);
+        $this->assertDatabaseMissing('carts', ['token' => $token]);
     }
 
     public function test_logout_all_revokes_every_token(): void

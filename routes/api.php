@@ -25,7 +25,7 @@ Route::controller(CategoryController::class)->prefix('categories')->name('catego
     Route::get('/{slug}', 'show')->name('show');
 });
 
-Route::middleware('auth:sanctum')->controller(CartController::class)->prefix('cart')->name('cart.')->group(function () {
+Route::middleware('optional.sanctum')->controller(CartController::class)->prefix('cart')->name('cart.')->group(function () {
     Route::get('/', 'show')->name('show');
     Route::delete('/', 'clear')->name('clear');
     Route::post('/items', 'store')->name('items.store');
@@ -36,7 +36,7 @@ Route::middleware('auth:sanctum')->controller(CartController::class)->prefix('ca
     Route::delete('/promotion', 'removePromotion')->name('promotion.remove');
 });
 
-Route::middleware(['auth:sanctum', 'throttle:promotions'])
+Route::middleware(['optional.sanctum', 'throttle:promotions'])
     ->post('/promotions/validate', [PromotionController::class, 'validateCode'])
     ->name('promotions.validate');
 

@@ -25,6 +25,14 @@ class CartModelTest extends TestCase
         Cart::factory()->for($user)->create();
     }
 
+    public function test_multiple_guest_carts_can_exist(): void
+    {
+        Cart::factory()->guest()->create();
+        Cart::factory()->guest()->create();
+
+        $this->assertSame(2, Cart::query()->whereNull('user_id')->count());
+    }
+
     public function test_cart_cannot_hold_the_same_product_twice(): void
     {
         $cart = Cart::factory()->create();

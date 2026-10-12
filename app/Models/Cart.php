@@ -11,6 +11,9 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 /**
  * The cart stores products and quantities only. Prices are never stored here;
  * they are always read from the products table so totals cannot be tampered with.
+ *
+ * Authenticated carts are keyed by `user_id`. Guest carts are keyed by `token`
+ * (sent as `X-Cart-Token`). Stock holds live in `stock_reservations` with a TTL.
  */
 class Cart extends Model
 {
@@ -22,8 +25,14 @@ class Cart extends Model
      */
     protected $fillable = [
         'user_id',
+        'token',
         'promotion_id',
     ];
+
+    public function isGuest(): bool
+    {
+        return $this->user_id === null;
+    }
 
     /**
      * @return BelongsTo<User, $this>
@@ -39,6 +48,14 @@ class Cart extends Model
     public function items(): HasMany
     {
         return $this->hasMany(CartItem::class);
+    }
+
+    /**
+     * @return HasMany<StockReservation, $this>
+     */
+    public function reservations(): HasMany
+    {
+        return $this->hasMany(StockReservation::class);
     }
 
     /**

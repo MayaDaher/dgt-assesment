@@ -22,6 +22,9 @@ class CartResource extends JsonResource
 
         return [
             'id' => $summary->cart->id,
+            'is_guest' => $summary->cart->isGuest(),
+            'cart_token' => $summary->cart->token,
+            'reservation_expires_at' => $summary->reservationExpiresAt?->toIso8601String(),
             'items' => array_map(fn (CartLine $line) => $this->line($line), $summary->lines),
             'items_count' => count($summary->lines),
             'total_quantity' => $summary->totalQuantity,

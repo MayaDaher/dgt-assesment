@@ -46,13 +46,13 @@ class PromotionApiTest extends TestCase
         return $this->postJson('/api/promotions/validate', ['code' => $code]);
     }
 
-    public function test_promotion_endpoints_require_authentication(): void
+    public function test_guests_can_preview_promotions_against_their_cart(): void
     {
         $this->app['auth']->forgetGuards();
 
-        $this->postJson('/api/promotions/validate', ['code' => 'X'])->assertUnauthorized();
-        $this->postJson('/api/cart/promotion', ['code' => 'X'])->assertUnauthorized();
-        $this->deleteJson('/api/cart/promotion')->assertUnauthorized();
+        $this->postJson('/api/promotions/validate', ['code' => 'X'])
+            ->assertUnprocessable()
+            ->assertJsonPath('code', 'CART_EMPTY');
     }
 
     public function test_summer20_example_from_the_brief(): void

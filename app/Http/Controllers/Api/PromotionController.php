@@ -18,7 +18,7 @@ class PromotionController extends Controller
      */
     public function validateCode(PromotionCodeRequest $request): JsonResponse
     {
-        $preview = $this->cart->previewPromotion($request->user(), $request->code());
+        $preview = $this->cart->previewPromotion($this->cart->resolve($request), $request->code());
 
         return ApiResponse::success(new PromotionPreviewResource($preview), 'The promotion code is valid.');
     }

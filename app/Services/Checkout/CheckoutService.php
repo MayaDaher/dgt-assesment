@@ -22,6 +22,7 @@ use App\Services\Cart\CartCalculator;
 use App\Services\Cart\CartLine;
 use App\Services\Cart\CartSummary;
 use App\Services\Catalog\CatalogCache;
+use App\Services\Inventory\StockReservationService;
 use App\Services\Promotions\PromotionEligibility;
 use App\Support\Money;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -35,6 +36,9 @@ use Illuminate\Support\Facades\DB;
  * Prices, discounts and totals are always recalculated here. Concurrent checkouts
  * lock product rows in id order, then decrement stock only when enough remains
  * (`WHERE stock_quantity >= quantity`), so two buyers cannot push inventory below zero.
+ *
+ * Cart reservations are released after the decrement so the same units are not
+ * subtracted twice. Checkout still requires an authenticated user.
  */
 class CheckoutService
 {
@@ -42,6 +46,7 @@ class CheckoutService
         private readonly CartCalculator $calculator,
         private readonly PromotionEligibility $eligibility,
         private readonly CatalogCache $catalogCache,
+        private readonly StockReservationService $reservations,
     ) {}
 
     public function place(User $user, ?string $idempotencyKey = null): CheckoutResult
@@ -66,6 +71,7 @@ class CheckoutService
                 $this->assertReady($summary);
 
                 $this->decrementStock($summary);
+                $this->reservations->release($cart);
                 $this->consumePromotion($summary, $user);
 
                 $order = $this->createOrder($summary, $user, $key);

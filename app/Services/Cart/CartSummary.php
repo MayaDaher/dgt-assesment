@@ -5,6 +5,7 @@ namespace App\Services\Cart;
 use App\Exceptions\Promotion\PromotionException;
 use App\Models\Cart;
 use App\Models\Promotion;
+use Illuminate\Support\Carbon;
 
 final readonly class CartSummary
 {
@@ -19,6 +20,7 @@ final readonly class CartSummary
         public ?Promotion $promotion = null,
         public int $discountCents = 0,
         public ?PromotionException $promotionError = null,
+        public ?Carbon $reservationExpiresAt = null,
     ) {}
 
     public function totalCents(): int

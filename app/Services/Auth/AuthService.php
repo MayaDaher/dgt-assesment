@@ -4,6 +4,7 @@ namespace App\Services\Auth;
 
 use App\Exceptions\Auth\InvalidCredentialsException;
 use App\Models\User;
+use App\Services\Cart\CartService;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Hash;
 use Laravel\Sanctum\NewAccessToken;
@@ -13,19 +14,23 @@ class AuthService
 {
     private const DEFAULT_DEVICE_NAME = 'api';
 
+    public function __construct(private readonly CartService $carts) {}
+
     /**
      * Self-registration always creates a customer; admins are promoted via `php artisan user:role`.
      *
      * @param  array{name: string, email: string, password: string}  $data
      */
-    public function register(array $data, ?string $deviceName = null): AuthResult
+    public function register(array $data, ?string $deviceName = null, ?string $cartToken = null): AuthResult
     {
-        return DB::transaction(function () use ($data, $deviceName) {
+        return DB::transaction(function () use ($data, $deviceName, $cartToken) {
             $user = User::create([
                 'name' => $data['name'],
                 'email' => $data['email'],
                 'password' => $data['password'],
             ]);
+
+            $this->carts->claimGuestCart($user, $cartToken);
 
             return new AuthResult($user, $this->issueToken($user, $deviceName));
         });
@@ -34,7 +39,7 @@ class AuthService
     /**
      * @throws InvalidCredentialsException
      */
-    public function login(string $email, string $password, ?string $deviceName = null): AuthResult
+    public function login(string $email, string $password, ?string $deviceName = null, ?string $cartToken = null): AuthResult
     {
         $user = User::query()->where('email', $email)->first();
 
@@ -45,6 +50,8 @@ class AuthService
         if (Hash::needsRehash($user->password)) {
             $user->forceFill(['password' => $password])->save();
         }
+
+        $this->carts->claimGuestCart($user, $cartToken);
 
         return new AuthResult($user, $this->issueToken($user, $deviceName));
     }

@@ -27,10 +27,12 @@ class PromotionEligibility
 
     /**
      * Returns the discount in cents when the promotion can be used.
+     * Guests (`$user` null) skip the per-customer usage limit; checkout re-checks
+     * once the customer is authenticated.
      *
      * @throws PromotionException
      */
-    public function check(Promotion $promotion, User $user, int $subtotalCents): int
+    public function check(Promotion $promotion, ?User $user, int $subtotalCents): int
     {
         if ($promotion->trashed()) {
             throw new PromotionException(PromotionError::Invalid);
@@ -56,7 +58,7 @@ class PromotionEligibility
             throw new PromotionException(PromotionError::UsageLimitReached);
         }
 
-        if ($promotion->per_customer_limit !== null) {
+        if ($promotion->per_customer_limit !== null && $user !== null) {
             $used = $promotion->usageCountFor($user);
 
             if ($used >= $promotion->per_customer_limit) {

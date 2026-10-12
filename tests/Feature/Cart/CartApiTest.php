@@ -36,13 +36,38 @@ class CartApiTest extends TestCase
         return CartItem::factory()->for($cart)->for($product)->create(['quantity' => $quantity]);
     }
 
-    public function test_cart_endpoints_require_authentication(): void
+    public function test_guests_can_open_a_cart_without_authentication(): void
     {
-        $this->getJson('/api/cart')->assertUnauthorized();
-        $this->postJson('/api/cart/items', ['product_id' => 1])->assertUnauthorized();
-        $this->patchJson('/api/cart/items/1', ['quantity' => 1])->assertUnauthorized();
-        $this->deleteJson('/api/cart/items/1')->assertUnauthorized();
-        $this->deleteJson('/api/cart')->assertUnauthorized();
+        $token = $this->getJson('/api/cart')
+            ->assertOk()
+            ->assertJsonPath('data.is_guest', true)
+            ->assertJsonPath('data.items', [])
+            ->assertJsonPath('data.checkout_ready', false)
+            ->json('data.cart_token');
+
+        $this->assertNotEmpty($token);
+    }
+
+    public function test_bearer_token_loads_the_authenticated_users_cart(): void
+    {
+        $token = $this->customer->createToken('api')->plainTextToken;
+        $product = Product::factory()->priced('10.00')->withStock(3)->create();
+
+        $this->withToken($token)
+            ->postJson('/api/cart/items', ['product_id' => $product->id])
+            ->assertCreated()
+            ->assertJsonPath('data.is_guest', false)
+            ->assertJsonPath('data.cart_token', null);
+
+        $this->assertDatabaseHas('carts', ['user_id' => $this->customer->id, 'token' => null]);
+    }
+
+    public function test_invalid_bearer_token_is_rejected_on_cart_routes(): void
+    {
+        $this->withToken('not-a-real-token')
+            ->getJson('/api/cart')
+            ->assertUnauthorized()
+            ->assertJsonPath('code', 'UNAUTHENTICATED');
     }
 
     public function test_new_customer_gets_an_empty_cart(): void
@@ -54,6 +79,8 @@ class CartApiTest extends TestCase
             ->assertJsonPath('data.items', [])
             ->assertJsonPath('data.items_count', 0)
             ->assertJsonPath('data.subtotal', '0.00')
+            ->assertJsonPath('data.is_guest', false)
+            ->assertJsonPath('data.cart_token', null)
             ->assertJsonPath('data.checkout_ready', false);
     }
 

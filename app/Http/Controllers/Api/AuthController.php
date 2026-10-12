@@ -9,6 +9,7 @@ use App\Http\Resources\UserResource;
 use App\Http\Responses\ApiResponse;
 use App\Services\Auth\AuthResult;
 use App\Services\Auth\AuthService;
+use App\Support\CartToken;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
@@ -21,6 +22,7 @@ class AuthController extends Controller
         $result = $this->auth->register(
             $request->safe()->only(['name', 'email', 'password']),
             $request->validated('device_name'),
+            CartToken::from($request),
         );
 
         return ApiResponse::created($this->authPayload($result), 'Registered successfully.');
@@ -32,6 +34,7 @@ class AuthController extends Controller
             $request->validated('email'),
             $request->validated('password'),
             $request->validated('device_name'),
+            CartToken::from($request),
         );
 
         return ApiResponse::success($this->authPayload($result), 'Logged in successfully.');

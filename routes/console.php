@@ -30,3 +30,4 @@ Artisan::command('user:role {email} {role=admin}', function (string $email, stri
 })->purpose('Change the role of a user (customer or admin)');
 
 Schedule::command('sanctum:prune-expired --hours=24')->daily();
+Schedule::command('cart:expire-reservations')->everyMinute();
