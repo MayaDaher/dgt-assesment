@@ -7,6 +7,7 @@ use App\Models\Product;
 use App\Models\Promotion;
 use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Str;
 use Illuminate\Testing\TestResponse;
 use Laravel\Sanctum\Sanctum;
@@ -148,5 +149,49 @@ class GuestCartTest extends TestCase
             ->assertJsonPath('data.items.0.quantity', 2);
 
         $this->assertDatabaseMissing('carts', ['token' => $token]);
+    }
+
+    public function test_idle_guest_cart_is_gone_on_the_next_request(): void
+    {
+        $token = (string) Str::uuid();
+        $cart = Cart::factory()->guest()->create(['token' => $token]);
+        Cart::query()->whereKey($cart->id)->update(['updated_at' => now()->subDays(31)]);
+
+        $this->withHeaders(['X-Cart-Token' => $token])
+            ->getJson('/api/cart')
+            ->assertNotFound()
+            ->assertJsonPath('code', 'CART_NOT_FOUND');
+
+        $this->assertDatabaseMissing('carts', ['id' => $cart->id]);
+    }
+
+    public function test_using_a_guest_cart_slides_idle_expiry(): void
+    {
+        $token = (string) Str::uuid();
+        $cart = Cart::factory()->guest()->create(['token' => $token]);
+        Cart::query()->whereKey($cart->id)->update(['updated_at' => now()->subDays(29)]);
+
+        $this->withHeaders(['X-Cart-Token' => $token])
+            ->getJson('/api/cart')
+            ->assertOk()
+            ->assertJsonPath('data.cart_token', $token);
+
+        Carbon::setTestNow(now()->addDays(2));
+
+        $this->withHeaders(['X-Cart-Token' => $token])
+            ->getJson('/api/cart')
+            ->assertOk();
+
+        Carbon::setTestNow();
+    }
+
+    public function test_authenticated_carts_are_not_pruned_when_idle(): void
+    {
+        $user = User::factory()->create();
+        $cart = Cart::factory()->for($user)->create(['updated_at' => now()->subDays(40)]);
+
+        $this->artisan('cart:expire-reservations')->assertSuccessful();
+
+        $this->assertDatabaseHas('carts', ['id' => $cart->id]);
     }
 }

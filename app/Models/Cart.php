@@ -34,6 +34,17 @@ class Cart extends Model
         return $this->user_id === null;
     }
 
+    public function isIdle(): bool
+    {
+        if (! $this->isGuest() || $this->updated_at === null) {
+            return false;
+        }
+
+        $days = max(1, (int) config('cart.idle_days', 30));
+
+        return $this->updated_at->lte(now()->subDays($days));
+    }
+
     /**
      * @return BelongsTo<User, $this>
      */
@@ -71,5 +82,16 @@ class Cart extends Model
     public function isEmpty(): bool
     {
         return ! $this->items()->exists();
+    }
+
+    /**
+     * Deletes the cart, its lines, and any remaining stock holds.
+     * Used for idle guest expiry so GET never silently drops individual lines.
+     */
+    public function discard(): void
+    {
+        $this->items()->delete();
+        $this->reservations()->delete();
+        $this->delete();
     }
 }

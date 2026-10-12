@@ -29,4 +29,17 @@ return [
 
     'reservation_ttl_minutes' => (int) env('CART_RESERVATION_TTL_MINUTES', 15),
 
+    /*
+    |--------------------------------------------------------------------------
+    | Idle guest carts
+    |--------------------------------------------------------------------------
+    |
+    | Guest carts that have not been read or written for this many days are
+    | deleted (items and reservations go with them). Authenticated carts are
+    | kept. GET/PATCH never silently drop lines of a live cart.
+    |
+    */
+
+    'idle_days' => (int) env('CART_IDLE_DAYS', 30),
+
 ];

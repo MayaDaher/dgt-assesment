@@ -72,6 +72,9 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->name('admin.
         ->name('products.audits');
     Route::get('/audits', [AdminProductAuditController::class, 'indexAll'])->name('audits.index');
     Route::apiResource('promotions', AdminPromotionController::class);
+    Route::post('/promotions/{promotion}/restore', [AdminPromotionController::class, 'restore'])
+        ->whereNumber('promotion')
+        ->name('promotions.restore');
 
     Route::controller(AdminOrderController::class)->prefix('orders')->name('orders.')->group(function () {
         Route::get('/', 'index')->name('index');

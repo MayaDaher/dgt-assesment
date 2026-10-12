@@ -56,4 +56,15 @@ class PromotionController extends Controller
 
         return ApiResponse::success(null, 'Promotion deleted.');
     }
+
+    public function restore(int $promotion): JsonResponse
+    {
+        $promotion = Promotion::onlyTrashed()->findOrFail($promotion);
+        $promotion->restore();
+
+        return ApiResponse::success(
+            new PromotionResource($promotion->load(['products:id', 'categories:id'])),
+            'Promotion restored.',
+        );
+    }
 }

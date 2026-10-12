@@ -8,10 +8,13 @@ use App\Http\Resources\ProductResource;
 use App\Http\Responses\ApiResponse;
 use App\Models\Product;
 use App\Queries\Products\ProductListingQuery;
+use App\Services\Catalog\ProductAvailabilityOverlay;
 use Illuminate\Http\JsonResponse;
 
 class ProductController extends Controller
 {
+    public function __construct(private readonly ProductAvailabilityOverlay $availability) {}
+
     public function index(ListProductsRequest $request, ProductListingQuery $query): JsonResponse
     {
         return ApiResponse::success(
@@ -23,6 +26,6 @@ class ProductController extends Controller
     {
         $product = Product::query()->active()->with('category')->findOrFail($product);
 
-        return ApiResponse::success(new ProductResource($product));
+        return ApiResponse::success(new ProductResource($this->availability->one($product)));
     }
 }

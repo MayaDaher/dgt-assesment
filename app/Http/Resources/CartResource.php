@@ -34,6 +34,7 @@ class CartResource extends JsonResource
             'total' => Money::format($summary->totalCents()),
             'has_issues' => $summary->hasIssues(),
             'checkout_ready' => $summary->isCheckoutReady(),
+            'checkout_blocker' => $summary->checkoutBlocker(),
             'updated_at' => $summary->cart->updated_at?->toIso8601String(),
         ];
     }

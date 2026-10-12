@@ -25,6 +25,7 @@ trait ValidatesPromotionPayload
         $required = $existing === null ? 'required' : 'sometimes';
 
         return [
+            // Table unique (not the model rule) so soft-deleted codes stay reserved; restore is the way back.
             'code' => [$required, 'string', 'max:50', Rule::unique('promotions', 'code')->ignore($existing)],
             'description' => ['sometimes', 'nullable', 'string', 'max:255'],
             'type' => [$required, Rule::enum(PromotionType::class)],
@@ -104,7 +105,7 @@ trait ValidatesPromotionPayload
      */
     public function promotionAttributes(): array
     {
-        return $this->safe()->except(['product_ids', 'category_ids']);
+        return $this->safe()->except(['product_ids', 'category_ids', 'used_count']);
     }
 
     /**

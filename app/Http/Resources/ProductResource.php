@@ -25,7 +25,8 @@ class ProductResource extends JsonResource
             'description' => $this->description,
             'price' => $this->price,
             'stock_quantity' => $this->stock_quantity,
-            'in_stock' => $this->isAvailable(),
+            'available_quantity' => (int) ($this->available_quantity ?? $this->stock_quantity),
+            'in_stock' => $this->isActive() && (int) ($this->available_quantity ?? $this->stock_quantity) > 0,
             'status' => $this->status->value,
             'category' => $this->whenLoaded('category', fn () => $this->category ? [
                 'id' => $this->category->id,

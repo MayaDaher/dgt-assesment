@@ -21,6 +21,7 @@ class ProductDetailsTest extends TestCase
             ->assertJsonPath('data.sku', 'PHN-001')
             ->assertJsonPath('data.price', '999.90')
             ->assertJsonPath('data.stock_quantity', 7)
+            ->assertJsonPath('data.available_quantity', 7)
             ->assertJsonPath('data.in_stock', true)
             ->assertJsonPath('data.status', 'active')
             ->assertJsonPath('data.category.id', $product->category_id);

@@ -50,6 +50,36 @@ final readonly class CartSummary
 
     public function isCheckoutReady(): bool
     {
-        return ! $this->isEmpty() && ! $this->hasIssues();
+        return $this->checkoutBlocker() === null;
+    }
+
+    /**
+     * Stable machine code a client can switch on when checkout_ready is false.
+     */
+    public function checkoutBlocker(): ?string
+    {
+        if ($this->isEmpty()) {
+            return 'CART_EMPTY';
+        }
+
+        if ($this->promotionError !== null) {
+            return $this->promotionError->errorCode();
+        }
+
+        $issues = [];
+
+        foreach ($this->lines as $line) {
+            if ($line->issue !== null) {
+                $issues[$line->issue->errorCode()] = true;
+            }
+        }
+
+        $codes = array_keys($issues);
+
+        return match (count($codes)) {
+            0 => null,
+            1 => $codes[0],
+            default => 'CART_HAS_ISSUES',
+        };
     }
 }

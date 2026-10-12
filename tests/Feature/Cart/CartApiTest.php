@@ -43,6 +43,7 @@ class CartApiTest extends TestCase
             ->assertJsonPath('data.is_guest', true)
             ->assertJsonPath('data.items', [])
             ->assertJsonPath('data.checkout_ready', false)
+            ->assertJsonPath('data.checkout_blocker', 'CART_EMPTY')
             ->json('data.cart_token');
 
         $this->assertNotEmpty($token);
@@ -81,7 +82,8 @@ class CartApiTest extends TestCase
             ->assertJsonPath('data.subtotal', '0.00')
             ->assertJsonPath('data.is_guest', false)
             ->assertJsonPath('data.cart_token', null)
-            ->assertJsonPath('data.checkout_ready', false);
+            ->assertJsonPath('data.checkout_ready', false)
+            ->assertJsonPath('data.checkout_blocker', 'CART_EMPTY');
     }
 
     public function test_customer_can_add_a_product(): void
@@ -98,7 +100,8 @@ class CartApiTest extends TestCase
             ->assertJsonPath('data.items.0.line_total', '59.97')
             ->assertJsonPath('data.subtotal', '59.97')
             ->assertJsonPath('data.total_quantity', 3)
-            ->assertJsonPath('data.checkout_ready', true);
+            ->assertJsonPath('data.checkout_ready', true)
+            ->assertJsonPath('data.checkout_blocker', null);
 
         $this->assertDatabaseHas('cart_items', ['product_id' => $product->id, 'quantity' => 3]);
     }
@@ -368,7 +371,8 @@ class CartApiTest extends TestCase
             ->assertJsonPath('data.items.3.available_quantity', 0)
             ->assertJsonPath('data.subtotal', '10.00')
             ->assertJsonPath('data.has_issues', true)
-            ->assertJsonPath('data.checkout_ready', false);
+            ->assertJsonPath('data.checkout_ready', false)
+            ->assertJsonPath('data.checkout_blocker', 'CART_HAS_ISSUES');
     }
 
     public function test_each_customer_only_sees_their_own_cart(): void

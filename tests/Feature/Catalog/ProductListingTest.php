@@ -2,8 +2,11 @@
 
 namespace Tests\Feature\Catalog;
 
+use App\Models\Cart;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\StockReservation;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Illuminate\Support\Facades\DB;
 use Tests\TestCase;
@@ -26,7 +29,7 @@ class ProductListingTest extends TestCase
             ->assertJsonPath('meta.last_page', 4)
             ->assertJsonStructure([
                 'success', 'message',
-                'data' => [['id', 'name', 'sku', 'description', 'price', 'stock_quantity', 'in_stock', 'status', 'category' => ['id', 'name', 'slug'], 'created_at', 'updated_at']],
+                'data' => [['id', 'name', 'sku', 'description', 'price', 'stock_quantity', 'available_quantity', 'in_stock', 'status', 'category' => ['id', 'name', 'slug'], 'created_at', 'updated_at']],
                 'links' => ['first', 'last', 'prev', 'next'],
                 'meta' => ['current_page', 'last_page', 'per_page', 'total', 'from', 'to'],
             ]);
@@ -121,6 +124,32 @@ class ProductListingTest extends TestCase
         $this->getJson('/api/products?max_price=10')->assertJsonCount(1, 'data');
     }
 
+    public function test_available_quantity_excludes_active_reservations_without_changing_on_hand(): void
+    {
+        $product = Product::factory()->withStock(5)->create();
+        $cart = Cart::factory()->for(User::factory())->create();
+        $hold = StockReservation::factory()->for($cart)->for($product)->create(['quantity' => 4]);
+
+        $this->getJson('/api/products')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $product->id)
+            ->assertJsonPath('data.0.stock_quantity', 5)
+            ->assertJsonPath('data.0.available_quantity', 1)
+            ->assertJsonPath('data.0.in_stock', true);
+
+        $this->getJson("/api/products/{$product->id}")
+            ->assertOk()
+            ->assertJsonPath('data.stock_quantity', 5)
+            ->assertJsonPath('data.available_quantity', 1);
+
+        $hold->update(['quantity' => 5]);
+
+        $this->getJson("/api/products/{$product->id}")
+            ->assertJsonPath('data.stock_quantity', 5)
+            ->assertJsonPath('data.available_quantity', 0)
+            ->assertJsonPath('data.in_stock', false);
+    }
+
     public function test_it_filters_by_availability(): void
     {
         $inStock = Product::factory()->withStock(3)->create();
@@ -135,6 +164,24 @@ class ProductListingTest extends TestCase
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $outOfStock->id)
             ->assertJsonPath('data.0.in_stock', false);
+    }
+
+    public function test_availability_filter_uses_on_hand_stock_not_reservations(): void
+    {
+        $product = Product::factory()->withStock(2)->create();
+        $cart = Cart::factory()->for(User::factory())->create();
+        StockReservation::factory()->for($cart)->for($product)->create(['quantity' => 2]);
+
+        $this->getJson('/api/products?availability=in_stock')
+            ->assertOk()
+            ->assertJsonPath('data.0.id', $product->id)
+            ->assertJsonPath('data.0.stock_quantity', 2)
+            ->assertJsonPath('data.0.available_quantity', 0)
+            ->assertJsonPath('data.0.in_stock', false);
+
+        $this->getJson('/api/products?availability=out_of_stock')
+            ->assertOk()
+            ->assertJsonCount(0, 'data');
     }
 
     public function test_sku_search_hides_inactive_and_deleted_products(): void
@@ -237,7 +284,7 @@ class ProductListingTest extends TestCase
         $queries = count(DB::getQueryLog());
         DB::disableQueryLog();
 
-        $this->assertLessThanOrEqual(3, $queries, "Expected count + products + categories queries, got {$queries}.");
+        $this->assertLessThanOrEqual(4, $queries, "Expected count + products + categories + reservations overlay, got {$queries}.");
     }
 
     public function test_listing_is_public(): void

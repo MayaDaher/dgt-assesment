@@ -296,7 +296,8 @@ class PromotionApiTest extends TestCase
             ->assertJsonPath('data.discount', '0.00')
             ->assertJsonPath('data.total', '60.00')
             ->assertJsonPath('data.has_issues', true)
-            ->assertJsonPath('data.checkout_ready', false);
+            ->assertJsonPath('data.checkout_ready', false)
+            ->assertJsonPath('data.checkout_blocker', 'PROMOTION_MINIMUM_NOT_MET');
 
         $this->patchJson("/api/cart/items/{$keep->id}", ['quantity' => 2])
             ->assertJsonPath('data.promotion.is_valid', true)
@@ -315,7 +316,8 @@ class PromotionApiTest extends TestCase
         $this->getJson('/api/cart')
             ->assertJsonPath('data.promotion.error.code', 'PROMOTION_EXPIRED')
             ->assertJsonPath('data.discount', '0.00')
-            ->assertJsonPath('data.checkout_ready', false);
+            ->assertJsonPath('data.checkout_ready', false)
+            ->assertJsonPath('data.checkout_blocker', 'PROMOTION_EXPIRED');
     }
 
     public function test_discount_only_uses_purchasable_lines(): void

@@ -3,6 +3,7 @@
 namespace Tests\Feature\Cart;
 
 use App\Models\Cart;
+use App\Models\CartItem;
 use App\Models\Product;
 use App\Models\StockReservation;
 use App\Models\User;
@@ -165,10 +166,31 @@ class StockReservationTest extends TestCase
 
         $this->artisan('cart:expire-reservations')
             ->expectsOutputToContain('Released 1 expired stock reservation(s).')
+            ->expectsOutputToContain('Pruned 0 idle guest cart(s).')
             ->assertSuccessful();
 
         $this->assertDatabaseCount('stock_reservations', 1);
         $this->assertDatabaseHas('stock_reservations', ['id' => $live->id]);
+    }
+
+    public function test_expire_command_deletes_idle_guest_carts(): void
+    {
+        $idle = Cart::factory()->guest()->create();
+        $fresh = Cart::factory()->guest()->create();
+        $product = Product::factory()->withStock(3)->create();
+        CartItem::factory()->for($idle)->for($product)->create(['quantity' => 1]);
+        StockReservation::factory()->for($idle)->for($product)->create(['quantity' => 1]);
+        Cart::query()->whereKey($idle->id)->update(['updated_at' => now()->subDays(31)]);
+        Cart::query()->whereKey($fresh->id)->update(['updated_at' => now()->subDay()]);
+
+        $this->artisan('cart:expire-reservations')
+            ->expectsOutputToContain('Pruned 1 idle guest cart(s).')
+            ->assertSuccessful();
+
+        $this->assertDatabaseMissing('carts', ['id' => $idle->id]);
+        $this->assertDatabaseHas('carts', ['id' => $fresh->id]);
+        $this->assertDatabaseMissing('cart_items', ['cart_id' => $idle->id]);
+        $this->assertDatabaseMissing('stock_reservations', ['cart_id' => $idle->id]);
     }
 
     public function test_guest_and_customer_reservations_compete_for_the_same_stock(): void

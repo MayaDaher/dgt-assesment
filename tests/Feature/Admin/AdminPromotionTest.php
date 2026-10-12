@@ -34,6 +34,15 @@ class AdminPromotionTest extends TestCase
             'type' => PromotionType::Fixed->value,
             'value' => '5',
         ])->assertForbidden();
+        $this->postJson('/api/admin/promotions/1/restore')->assertForbidden();
+    }
+
+    public function test_restore_rejects_missing_and_live_promotions(): void
+    {
+        $this->postJson('/api/admin/promotions/999999/restore')->assertNotFound();
+
+        $live = Promotion::factory()->create();
+        $this->postJson("/api/admin/promotions/{$live->id}/restore")->assertNotFound();
     }
 
     public function test_admin_can_create_update_and_delete_a_promotion(): void
@@ -64,6 +73,22 @@ class AdminPromotionTest extends TestCase
 
         $this->deleteJson("/api/admin/promotions/{$id}")->assertOk();
         $this->assertSoftDeleted('promotions', ['id' => $id]);
+        $this->getJson("/api/admin/promotions/{$id}")->assertNotFound();
+
+        $this->postJson('/api/admin/promotions', [
+            'code' => 'WINTER15',
+            'type' => PromotionType::Percentage->value,
+            'value' => '15',
+        ])->assertUnprocessable()->assertJsonValidationErrors(['code']);
+
+        $this->postJson("/api/admin/promotions/{$id}/restore")
+            ->assertOk()
+            ->assertJsonPath('message', 'Promotion restored.')
+            ->assertJsonPath('data.code', 'WINTER15')
+            ->assertJsonPath('data.used_count', 0);
+
+        $this->assertNotSoftDeleted('promotions', ['id' => $id]);
+        $this->getJson("/api/admin/promotions/{$id}")->assertOk()->assertJsonPath('data.code', 'WINTER15');
     }
 
     public function test_used_count_cannot_be_set_from_the_request(): void

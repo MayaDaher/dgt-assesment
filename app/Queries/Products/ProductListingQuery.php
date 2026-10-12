@@ -6,6 +6,7 @@ use App\Enums\ProductAvailability;
 use App\Models\Category;
 use App\Models\Product;
 use App\Services\Catalog\CatalogCache;
+use App\Services\Catalog\ProductAvailabilityOverlay;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
 use Illuminate\Database\Eloquent\Builder;
 
@@ -14,14 +15,17 @@ use Illuminate\Database\Eloquent\Builder;
  */
 class ProductListingQuery
 {
-    public function __construct(private readonly CatalogCache $cache) {}
+    public function __construct(
+        private readonly CatalogCache $cache,
+        private readonly ProductAvailabilityOverlay $availability,
+    ) {}
 
     /**
      * @return LengthAwarePaginator<int, Product>
      */
     public function paginate(ProductFilters $filters): LengthAwarePaginator
     {
-        return $this->cache->rememberListing($filters, function () use ($filters) {
+        $paginator = $this->cache->rememberListing($filters, function () use ($filters) {
             $sort = $filters->sort;
 
             return Product::query()
@@ -37,5 +41,9 @@ class ProductListingQuery
                 ->paginate($filters->perPage, ['*'], 'page', $filters->page)
                 ->withQueryString();
         });
+
+        $this->availability->apply($paginator->getCollection());
+
+        return $paginator;
     }
 }

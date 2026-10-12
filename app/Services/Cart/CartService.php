@@ -49,8 +49,16 @@ class CartService
         }
 
         if ($token !== null) {
-            return Cart::query()->where('token', $token)->whereNull('user_id')->first()
+            $cart = Cart::query()->where('token', $token)->whereNull('user_id')->first()
                 ?? throw new CartNotFoundException;
+
+            if ($cart->isIdle()) {
+                $cart->discard();
+
+                throw new CartNotFoundException;
+            }
+
+            return $cart;
         }
 
         if (! $createIfMissing) {
@@ -102,6 +110,7 @@ class CartService
     {
         $this->reservations->sync($cart);
         $cart->unsetRelation('reservations');
+        $cart->touch();
 
         return $this->calculator->summarize($cart->refresh());
     }
@@ -306,7 +315,7 @@ class CartService
                 $userCart->update(['promotion_id' => $guest->promotion_id]);
             }
 
-            $guest->delete();
+            $guest->discard();
             $userCart->touch();
         });
     }

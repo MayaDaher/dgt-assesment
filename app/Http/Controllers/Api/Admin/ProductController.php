@@ -9,6 +9,7 @@ use App\Http\Requests\Admin\UpdateProductRequest;
 use App\Http\Resources\ProductResource;
 use App\Http\Responses\ApiResponse;
 use App\Models\Product;
+use App\Services\Catalog\ProductAvailabilityOverlay;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
@@ -16,6 +17,8 @@ use Illuminate\Validation\Rule;
 
 class ProductController extends Controller
 {
+    public function __construct(private readonly ProductAvailabilityOverlay $availability) {}
+
     public function index(Request $request): JsonResponse
     {
         $request->validate([
@@ -32,6 +35,8 @@ class ProductController extends Controller
             ->paginate((int) $request->input('per_page', 15))
             ->withQueryString();
 
+        $this->availability->apply($products->getCollection());
+
         return ApiResponse::success(ProductResource::collection($products));
     }
 
@@ -39,12 +44,15 @@ class ProductController extends Controller
     {
         $product = Product::query()->create($request->validated());
 
-        return ApiResponse::created(new ProductResource($product->load('category')), 'Product created.');
+        return ApiResponse::created(
+            new ProductResource($this->availability->one($product->load('category'))),
+            'Product created.',
+        );
     }
 
     public function show(Product $product): JsonResponse
     {
-        return ApiResponse::success(new ProductResource($product->loadMissing('category')));
+        return ApiResponse::success(new ProductResource($this->availability->one($product->loadMissing('category'))));
     }
 
     public function update(UpdateProductRequest $request, Product $product): JsonResponse
@@ -56,7 +64,7 @@ class ProductController extends Controller
             return $locked->fresh()->load('category');
         });
 
-        return ApiResponse::success(new ProductResource($updated), 'Product updated.');
+        return ApiResponse::success(new ProductResource($this->availability->one($updated)), 'Product updated.');
     }
 
     public function destroy(Product $product): JsonResponse
@@ -71,6 +79,9 @@ class ProductController extends Controller
         $product = Product::onlyTrashed()->findOrFail($product);
         $product->restore();
 
-        return ApiResponse::success(new ProductResource($product->load('category')), 'Product restored.');
+        return ApiResponse::success(
+            new ProductResource($this->availability->one($product->load('category'))),
+            'Product restored.',
+        );
     }
 }
