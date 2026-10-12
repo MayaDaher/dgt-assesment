@@ -53,6 +53,7 @@ class CartResource extends JsonResource
             'code' => $summary->promotion->code,
             'description' => $summary->promotion->description,
             'type' => $summary->promotion->type->value,
+            'scope' => $summary->promotion->scope->value,
             'value' => $summary->promotion->value,
             'is_valid' => $error === null,
             'error' => $error === null ? null : [
@@ -81,6 +82,8 @@ class CartResource extends JsonResource
             'line_total' => Money::format($line->lineTotalCents),
             'available_quantity' => $line->availableQuantity,
             'is_purchasable' => $line->isPurchasable(),
+            'promotion_eligible' => $line->promotionEligible,
+            'discount' => Money::format($line->discountCents),
             'issue' => $line->issue?->value,
         ];
     }

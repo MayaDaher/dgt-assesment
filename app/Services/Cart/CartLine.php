@@ -16,6 +16,8 @@ final readonly class CartLine
         public int $lineTotalCents,
         public int $availableQuantity,
         public ?CartLineIssue $issue,
+        public bool $promotionEligible = false,
+        public int $discountCents = 0,
     ) {}
 
     public function isPurchasable(): bool

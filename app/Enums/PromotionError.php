@@ -10,6 +10,7 @@ enum PromotionError: string
     case Expired = 'PROMOTION_EXPIRED';
     case UsageLimitReached = 'PROMOTION_USAGE_LIMIT_REACHED';
     case CustomerLimitReached = 'PROMOTION_CUSTOMER_LIMIT_REACHED';
+    case NotApplicable = 'PROMOTION_NOT_APPLICABLE';
     case MinimumNotMet = 'PROMOTION_MINIMUM_NOT_MET';
 
     public function message(): string
@@ -21,6 +22,7 @@ enum PromotionError: string
             self::Expired => 'This promotion code has expired.',
             self::UsageLimitReached => 'This promotion code has reached its usage limit.',
             self::CustomerLimitReached => 'You have already used this promotion code the maximum number of times.',
+            self::NotApplicable => 'This promotion does not apply to any items in your cart.',
             self::MinimumNotMet => 'Your cart does not meet the minimum amount for this promotion code.',
         };
     }

@@ -8,6 +8,7 @@ use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\StockReservation;
 use App\Services\Inventory\StockReservationService;
+use App\Services\Promotions\DiscountCalculator;
 use App\Services\Promotions\PromotionEligibility;
 use App\Support\Money;
 use Illuminate\Support\Carbon;
@@ -24,6 +25,7 @@ class CartCalculator
     public function __construct(
         private readonly PromotionEligibility $eligibility,
         private readonly StockReservationService $reservations,
+        private readonly DiscountCalculator $discounts,
     ) {}
 
     /**
@@ -32,7 +34,13 @@ class CartCalculator
      */
     public function summarize(Cart $cart, bool $withPromotion = true): CartSummary
     {
-        $cart->loadMissing(['items.product', 'promotion', 'user', 'reservations']);
+        $cart->loadMissing([
+            'items.product.category',
+            'promotion.products',
+            'promotion.categories.children',
+            'user',
+            'reservations',
+        ]);
 
         $lines = $cart->items
             ->sortBy('id')
@@ -57,7 +65,8 @@ class CartCalculator
 
         if ($promotion !== null) {
             try {
-                $discount = $this->eligibility->check($promotion, $cart->user, $subtotal);
+                $discount = $this->eligibility->check($promotion, $cart->user, $lines);
+                $lines = $this->discounts->applyToLines($promotion, $lines, $discount);
             } catch (PromotionException $e) {
                 $promotionError = $e;
             }

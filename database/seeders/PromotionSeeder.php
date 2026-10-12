@@ -2,7 +2,10 @@
 
 namespace Database\Seeders;
 
+use App\Enums\PromotionScope;
 use App\Enums\PromotionType;
+use App\Models\Category;
+use App\Models\Product;
 use App\Models\Promotion;
 use App\Models\PromotionUsage;
 use App\Models\User;
@@ -65,6 +68,16 @@ class PromotionSeeder extends Seeder
                 'type' => PromotionType::Fixed, 'value' => '5.00',
                 'is_active' => false,
             ],
+            'AUDIO10' => [
+                'description' => '10% off audio products (headphones, earbuds).',
+                'type' => PromotionType::Percentage, 'value' => '10.00',
+                'scope' => PromotionScope::Categories,
+            ],
+            'SNKDEAL' => [
+                'description' => '$20 off Limited Edition Sneakers.',
+                'type' => PromotionType::Fixed, 'value' => '20.00',
+                'scope' => PromotionScope::Products,
+            ],
         ];
 
         foreach ($promotions as $code => $attributes) {
@@ -81,12 +94,15 @@ class PromotionSeeder extends Seeder
                     'usage_limit' => null,
                     'per_customer_limit' => null,
                     'is_active' => true,
+                    'scope' => PromotionScope::Order,
                     ...$attributes,
                 ],
             )->forceFill(['used_count' => $usedCount, 'deleted_at' => null])->save();
         }
 
         $this->seedPriorUsage('ONCEONLY', 'customer@example.com');
+        $this->attachCategoryScope('AUDIO10', 'electronics-audio');
+        $this->attachProductScope('SNKDEAL', 'SNK-LTD-001');
     }
 
     private function seedPriorUsage(string $code, string $email): void
@@ -99,5 +115,29 @@ class PromotionSeeder extends Seeder
         }
 
         PromotionUsage::query()->firstOrCreate(['promotion_id' => $promotion->id, 'user_id' => $user->id]);
+    }
+
+    private function attachCategoryScope(string $code, string $categorySlug): void
+    {
+        $promotion = Promotion::query()->where('code', $code)->first();
+        $category = Category::query()->where('slug', $categorySlug)->first();
+
+        if ($promotion === null || $category === null) {
+            return;
+        }
+
+        $promotion->syncRestrictions(productIds: [], categoryIds: [$category->id]);
+    }
+
+    private function attachProductScope(string $code, string $sku): void
+    {
+        $promotion = Promotion::query()->where('code', $code)->first();
+        $product = Product::query()->where('sku', $sku)->first();
+
+        if ($promotion === null || $product === null) {
+            return;
+        }
+
+        $promotion->syncRestrictions(productIds: [$product->id], categoryIds: []);
     }
 }

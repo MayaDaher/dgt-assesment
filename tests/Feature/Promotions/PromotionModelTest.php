@@ -2,6 +2,7 @@
 
 namespace Tests\Feature\Promotions;
 
+use App\Enums\PromotionScope;
 use App\Enums\PromotionType;
 use App\Models\Cart;
 use App\Models\Promotion;
@@ -31,6 +32,7 @@ class PromotionModelTest extends TestCase
         $promotion = Promotion::factory()->percentage(20, 50)->minCart(100)->create()->fresh();
 
         $this->assertSame(PromotionType::Percentage, $promotion->type);
+        $this->assertSame(PromotionScope::Order, $promotion->scope);
         $this->assertSame('20.00', $promotion->value);
         $this->assertSame('50.00', $promotion->max_discount_amount);
         $this->assertSame('100.00', $promotion->min_cart_amount);
@@ -82,7 +84,15 @@ class PromotionModelTest extends TestCase
         $this->seed(DatabaseSeeder::class);
         $this->seed(DatabaseSeeder::class);
 
-        $this->assertSame(9, Promotion::count());
+        $this->assertSame(11, Promotion::count());
+
+        $audio = Promotion::query()->where('code', 'AUDIO10')->sole();
+        $this->assertSame(PromotionScope::Categories, $audio->scope);
+        $this->assertTrue($audio->categories()->where('slug', 'electronics-audio')->exists());
+
+        $sneakers = Promotion::query()->where('code', 'SNKDEAL')->sole();
+        $this->assertSame(PromotionScope::Products, $sneakers->scope);
+        $this->assertTrue($sneakers->products()->where('sku', 'SNK-LTD-001')->exists());
 
         $summer = Promotion::query()->where('code', 'SUMMER20')->sole();
         $this->assertSame(PromotionType::Percentage, $summer->type);

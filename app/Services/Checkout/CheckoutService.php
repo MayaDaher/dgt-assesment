@@ -126,6 +126,7 @@ class CheckoutService
 
         /** @var Collection<int, Product> $products */
         $products = Product::withTrashed()
+            ->with('category')
             ->whereIn('id', $productIds)
             ->orderBy('id')
             ->lockForUpdate()
@@ -225,7 +226,8 @@ class CheckoutService
             throw new PromotionException(PromotionError::Invalid);
         }
 
-        $this->eligibility->check($promotion, $user, $summary->subtotalCents);
+        $promotion->loadMissing(['products', 'categories.children']);
+        $this->eligibility->check($promotion, $user, $summary->lines);
 
         $query = Promotion::query()->whereKey($promotion->id);
 

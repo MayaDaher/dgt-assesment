@@ -201,9 +201,14 @@ class CartService
         }
 
         $promotion = $this->eligibility->findByCode($code);
-        $discount = $this->eligibility->check($promotion, $cart->user, $summary->subtotalCents);
+        $discount = $this->eligibility->check($promotion, $cart->user, $summary->lines);
 
-        return new PromotionPreview($promotion, $summary->subtotalCents, $discount);
+        return new PromotionPreview(
+            $promotion,
+            $summary->subtotalCents,
+            $discount,
+            $this->eligibility->eligibleSubtotal($promotion, $summary->lines),
+        );
     }
 
     /**

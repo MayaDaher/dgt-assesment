@@ -2,12 +2,14 @@
 
 namespace App\Models;
 
+use App\Enums\PromotionScope;
 use App\Enums\PromotionType;
 use Carbon\CarbonInterface;
 use Database\Factories\PromotionFactory;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\Relations\BelongsToMany;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\SoftDeletes;
 
@@ -25,6 +27,7 @@ class Promotion extends Model
         'code',
         'description',
         'type',
+        'scope',
         'value',
         'min_cart_amount',
         'max_discount_amount',
@@ -41,6 +44,7 @@ class Promotion extends Model
     protected $attributes = [
         'used_count' => 0,
         'is_active' => true,
+        'scope' => PromotionScope::Order->value,
     ];
 
     /**
@@ -50,6 +54,7 @@ class Promotion extends Model
     {
         return [
             'type' => PromotionType::class,
+            'scope' => PromotionScope::class,
             'value' => 'decimal:2',
             'min_cart_amount' => 'decimal:2',
             'max_discount_amount' => 'decimal:2',
@@ -73,6 +78,22 @@ class Promotion extends Model
     protected function code(): Attribute
     {
         return Attribute::make(set: fn (string $value) => self::normalizeCode($value));
+    }
+
+    /**
+     * @return BelongsToMany<Product, $this>
+     */
+    public function products(): BelongsToMany
+    {
+        return $this->belongsToMany(Product::class)->withTimestamps();
+    }
+
+    /**
+     * @return BelongsToMany<Category, $this>
+     */
+    public function categories(): BelongsToMany
+    {
+        return $this->belongsToMany(Category::class)->withTimestamps();
     }
 
     /**
@@ -109,5 +130,72 @@ class Promotion extends Model
     public function usageCountFor(User $user): int
     {
         return $this->usages()->where('user_id', $user->id)->count();
+    }
+
+    public function appliesTo(Product $product): bool
+    {
+        return match ($this->scope) {
+            PromotionScope::Order => true,
+            PromotionScope::Products => $this->products->contains('id', $product->id),
+            PromotionScope::Categories => $product->category_id !== null
+                && in_array($product->category_id, $this->scopedCategoryIds(), true),
+        };
+    }
+
+    /**
+     * Attached categories plus their direct children (the catalog tree is one level deep).
+     *
+     * @return list<int>
+     */
+    public function scopedCategoryIds(): array
+    {
+        $this->loadMissing('categories.children');
+
+        $ids = [];
+
+        foreach ($this->categories as $category) {
+            $ids[] = $category->id;
+
+            foreach ($category->children as $child) {
+                $ids[] = $child->id;
+            }
+        }
+
+        return array_values(array_unique($ids));
+    }
+
+    /**
+     * @param  list<int>|null  $productIds
+     * @param  list<int>|null  $categoryIds
+     */
+    public function syncRestrictions(?array $productIds, ?array $categoryIds): void
+    {
+        if ($this->scope === PromotionScope::Order) {
+            $this->clearRestrictions();
+
+            return;
+        }
+
+        if ($this->scope === PromotionScope::Products) {
+            $this->categories()->sync([]);
+
+            if ($productIds !== null) {
+                $this->products()->sync($productIds);
+            }
+
+            return;
+        }
+
+        $this->products()->sync([]);
+
+        if ($categoryIds !== null) {
+            $this->categories()->sync($categoryIds);
+        }
+    }
+
+    public function clearRestrictions(): void
+    {
+        $this->products()->sync([]);
+        $this->categories()->sync([]);
     }
 }

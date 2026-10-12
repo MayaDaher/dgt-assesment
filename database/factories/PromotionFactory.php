@@ -2,7 +2,10 @@
 
 namespace Database\Factories;
 
+use App\Enums\PromotionScope;
 use App\Enums\PromotionType;
+use App\Models\Category;
+use App\Models\Product;
 use App\Models\Promotion;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Str;
@@ -23,6 +26,7 @@ class PromotionFactory extends Factory
             'code' => 'PROMO'.Str::upper(Str::random(8)),
             'description' => fake()->sentence(),
             'type' => PromotionType::Percentage,
+            'scope' => PromotionScope::Order,
             'value' => '10.00',
             'min_cart_amount' => null,
             'max_discount_amount' => null,
@@ -86,5 +90,21 @@ class PromotionFactory extends Factory
     public function perCustomerLimit(int $limit): static
     {
         return $this->state(fn () => ['per_customer_limit' => $limit]);
+    }
+
+    public function forProducts(Product ...$products): static
+    {
+        return $this->state(fn () => ['scope' => PromotionScope::Products])
+            ->afterCreating(fn (Promotion $promotion) => $promotion->products()->sync(
+                collect($products)->pluck('id')->all()
+            ));
+    }
+
+    public function forCategories(Category ...$categories): static
+    {
+        return $this->state(fn () => ['scope' => PromotionScope::Categories])
+            ->afterCreating(fn (Promotion $promotion) => $promotion->categories()->sync(
+                collect($categories)->pluck('id')->all()
+            ));
     }
 }

@@ -3,7 +3,10 @@
 namespace Tests\Unit;
 
 use App\Enums\PromotionType;
+use App\Models\CartItem;
+use App\Models\Product;
 use App\Models\Promotion;
+use App\Services\Cart\CartLine;
 use App\Services\Promotions\DiscountCalculator;
 use PHPUnit\Framework\Attributes\DataProvider;
 use Tests\TestCase;
@@ -49,5 +52,42 @@ class DiscountCalculatorTest extends TestCase
         $discount = (new DiscountCalculator)->discountFor($this->promotion($type, $value, $max), $subtotalCents);
 
         $this->assertSame($expectedCents, $discount);
+    }
+
+    public function test_line_allocation_puts_remainder_cents_on_the_last_eligible_line(): void
+    {
+        $promotion = $this->promotion(PromotionType::Fixed, '1.00');
+        $headphones = new Product(['id' => 1, 'name' => 'A', 'sku' => 'A', 'price' => '0.60']);
+        $cable = new Product(['id' => 2, 'name' => 'B', 'sku' => 'B', 'price' => '0.40']);
+
+        $headphones->setRelation('category', null);
+        $cable->setRelation('category', null);
+
+        $lines = [
+            new CartLine(
+                item: new CartItem(['id' => 1, 'quantity' => 1]),
+                product: $headphones,
+                quantity: 1,
+                unitPriceCents: 60,
+                lineTotalCents: 60,
+                availableQuantity: 1,
+                issue: null,
+            ),
+            new CartLine(
+                item: new CartItem(['id' => 2, 'quantity' => 1]),
+                product: $cable,
+                quantity: 1,
+                unitPriceCents: 40,
+                lineTotalCents: 40,
+                availableQuantity: 1,
+                issue: null,
+            ),
+        ];
+
+        $priced = (new DiscountCalculator)->applyToLines($promotion, $lines, 100);
+
+        $this->assertSame(60, $priced[0]->discountCents);
+        $this->assertSame(40, $priced[1]->discountCents);
+        $this->assertSame(100, $priced[0]->discountCents + $priced[1]->discountCents);
     }
 }
