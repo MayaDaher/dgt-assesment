@@ -3,7 +3,9 @@
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
+use App\Http\Controllers\Api\CheckoutController;
 use App\Http\Controllers\Api\HelloWorldController;
+use App\Http\Controllers\Api\OrderController;
 use App\Http\Controllers\Api\ProductController;
 use App\Http\Controllers\Api\PromotionController;
 use Illuminate\Support\Facades\Route;
@@ -34,6 +36,15 @@ Route::middleware('auth:sanctum')->controller(CartController::class)->prefix('ca
 Route::middleware(['auth:sanctum', 'throttle:promotions'])
     ->post('/promotions/validate', [PromotionController::class, 'validateCode'])
     ->name('promotions.validate');
+
+Route::middleware(['auth:sanctum', 'throttle:checkout'])->group(function () {
+    Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout.store');
+
+    Route::controller(OrderController::class)->prefix('orders')->name('orders.')->group(function () {
+        Route::get('/', 'index')->name('index');
+        Route::get('/{order}', 'show')->whereNumber('order')->name('show');
+    });
+});
 
 Route::prefix('auth')->name('auth.')->controller(AuthController::class)->group(function () {
     Route::middleware('throttle:auth')->group(function () {

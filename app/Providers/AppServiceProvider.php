@@ -46,5 +46,8 @@ class AppServiceProvider extends ServiceProvider
         // Slows down guessing of promotion codes.
         RateLimiter::for('promotions', fn (Request $request) => Limit::perMinute(10)
             ->by('promotions:'.($request->user()?->id ?? $request->ip())));
+
+        RateLimiter::for('checkout', fn (Request $request) => Limit::perMinute(10)
+            ->by('checkout:'.($request->user()?->id ?? $request->ip())));
     }
 }

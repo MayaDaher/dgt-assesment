@@ -83,6 +83,14 @@ class Promotion extends Model
         return $this->hasMany(PromotionUsage::class);
     }
 
+    /**
+     * @return HasMany<Order, $this>
+     */
+    public function orders(): HasMany
+    {
+        return $this->hasMany(Order::class);
+    }
+
     public function hasStarted(?CarbonInterface $at = null): bool
     {
         return $this->starts_at === null || $this->starts_at->lte($at ?? now());

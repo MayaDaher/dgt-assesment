@@ -15,6 +15,7 @@ class PromotionUsage extends Model
     protected $fillable = [
         'promotion_id',
         'user_id',
+        'order_id',
         'used_at',
     ];
 
@@ -42,5 +43,13 @@ class PromotionUsage extends Model
     public function user(): BelongsTo
     {
         return $this->belongsTo(User::class);
+    }
+
+    /**
+     * @return BelongsTo<Order, $this>
+     */
+    public function order(): BelongsTo
+    {
+        return $this->belongsTo(Order::class);
     }
 }
