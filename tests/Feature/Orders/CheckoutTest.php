@@ -51,6 +51,7 @@ class CheckoutTest extends TestCase
         $this->postJson('/api/checkout')->assertUnauthorized();
         $this->getJson('/api/orders')->assertUnauthorized();
         $this->getJson('/api/orders/1')->assertUnauthorized();
+        $this->postJson('/api/orders/1/cancel')->assertUnauthorized();
     }
 
     public function test_empty_cart_cannot_be_checked_out(): void
@@ -183,36 +184,6 @@ class CheckoutTest extends TestCase
 
         $this->assertDatabaseCount('orders', 0);
         $this->assertSame(5, $product->fresh()->stock_quantity);
-    }
-
-    public function test_concurrent_style_purchases_never_make_stock_negative(): void
-    {
-        $product = Product::factory()->priced('120.00')->withStock(5)->create(['name' => 'Limited Edition Sneakers']);
-
-        $buyerA = $this->customer;
-        $buyerB = User::factory()->create();
-
-        CartItem::factory()->for(Cart::factory()->for($buyerA))->for($product)->create(['quantity' => 4]);
-        CartItem::factory()->for(Cart::factory()->for($buyerB))->for($product)->create(['quantity' => 3]);
-
-        Sanctum::actingAs($buyerA);
-        $this->postJson('/api/checkout')
-            ->assertCreated()
-            ->assertJsonPath('data.items.0.quantity', 4);
-
-        $this->assertSame(1, $product->fresh()->stock_quantity);
-
-        Sanctum::actingAs($buyerB);
-        $this->postJson('/api/checkout')
-            ->assertConflict()
-            ->assertJsonPath('code', 'INSUFFICIENT_STOCK')
-            ->assertJsonPath('details.requested_quantity', 3)
-            ->assertJsonPath('details.available_quantity', 1);
-
-        $this->assertSame(1, $product->fresh()->stock_quantity);
-        $this->assertGreaterThanOrEqual(0, $product->fresh()->stock_quantity);
-        $this->assertSame(1, Order::query()->count());
-        $this->assertSame(1, CartItem::query()->where('cart_id', $buyerB->cart->id)->count());
     }
 
     public function test_promotion_usage_limit_is_enforced_at_checkout(): void

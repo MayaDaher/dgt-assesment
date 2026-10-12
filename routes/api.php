@@ -43,6 +43,7 @@ Route::middleware(['auth:sanctum', 'throttle:checkout'])->group(function () {
     Route::controller(OrderController::class)->prefix('orders')->name('orders.')->group(function () {
         Route::get('/', 'index')->name('index');
         Route::get('/{order}', 'show')->whereNumber('order')->name('show');
+        Route::post('/{order}/cancel', 'cancel')->whereNumber('order')->name('cancel');
     });
 });
 

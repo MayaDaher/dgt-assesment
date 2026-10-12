@@ -32,6 +32,26 @@ class OrderFactory extends Factory
         ];
     }
 
+    public function paid(): static
+    {
+        return $this->state(fn () => ['status' => OrderStatus::Paid]);
+    }
+
+    public function processing(): static
+    {
+        return $this->state(fn () => ['status' => OrderStatus::Processing]);
+    }
+
+    public function shipped(): static
+    {
+        return $this->state(fn () => ['status' => OrderStatus::Shipped]);
+    }
+
+    public function delivered(): static
+    {
+        return $this->state(fn () => ['status' => OrderStatus::Delivered]);
+    }
+
     public function cancelled(): static
     {
         return $this->state(fn () => [
