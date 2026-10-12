@@ -37,13 +37,18 @@ Route::middleware(['auth:sanctum', 'throttle:promotions'])
     ->post('/promotions/validate', [PromotionController::class, 'validateCode'])
     ->name('promotions.validate');
 
-Route::middleware(['auth:sanctum', 'throttle:checkout'])->group(function () {
-    Route::post('/checkout', [CheckoutController::class, 'store'])->name('checkout.store');
+Route::middleware('auth:sanctum')->group(function () {
+    Route::post('/checkout', [CheckoutController::class, 'store'])
+        ->middleware('throttle:checkout')
+        ->name('checkout.store');
 
     Route::controller(OrderController::class)->prefix('orders')->name('orders.')->group(function () {
         Route::get('/', 'index')->name('index');
         Route::get('/{order}', 'show')->whereNumber('order')->name('show');
-        Route::post('/{order}/cancel', 'cancel')->whereNumber('order')->name('cancel');
+        Route::post('/{order}/cancel', 'cancel')
+            ->middleware('throttle:checkout')
+            ->whereNumber('order')
+            ->name('cancel');
     });
 });
 

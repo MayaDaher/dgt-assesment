@@ -47,6 +47,7 @@ class AppServiceProvider extends ServiceProvider
         RateLimiter::for('promotions', fn (Request $request) => Limit::perMinute(10)
             ->by('promotions:'.($request->user()?->id ?? $request->ip())));
 
+        // Checkout and cancel lock inventory rows; cap retries per customer.
         RateLimiter::for('checkout', fn (Request $request) => Limit::perMinute(10)
             ->by('checkout:'.($request->user()?->id ?? $request->ip())));
     }
