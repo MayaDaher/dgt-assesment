@@ -153,7 +153,8 @@ class AdminOrderTest extends TestCase
             ->assertOk()
             ->assertJsonPath('message', 'Order status updated.')
             ->assertJsonPath('data.status', OrderStatus::Paid->value)
-            ->assertJsonPath('data.cancellable', true);
+            ->assertJsonPath('data.cancellable', true)
+            ->assertJsonPath('data.payable', false);
 
         $this->patchJson("/api/admin/orders/{$order->id}", ['status' => OrderStatus::Processing->value])
             ->assertOk()

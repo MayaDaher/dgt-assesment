@@ -29,27 +29,49 @@ class OrderFactory extends Factory
             'total' => '100.00',
             'idempotency_key' => null,
             'cancelled_at' => null,
+            'paid_at' => null,
+            'processing_at' => null,
+            'shipped_at' => null,
+            'delivered_at' => null,
         ];
     }
 
     public function paid(): static
     {
-        return $this->state(fn () => ['status' => OrderStatus::Paid]);
+        return $this->state(fn () => [
+            'status' => OrderStatus::Paid,
+            'paid_at' => now(),
+        ]);
     }
 
     public function processing(): static
     {
-        return $this->state(fn () => ['status' => OrderStatus::Processing]);
+        return $this->state(fn () => [
+            'status' => OrderStatus::Processing,
+            'paid_at' => now()->subMinute(),
+            'processing_at' => now(),
+        ]);
     }
 
     public function shipped(): static
     {
-        return $this->state(fn () => ['status' => OrderStatus::Shipped]);
+        return $this->state(fn () => [
+            'status' => OrderStatus::Shipped,
+            'paid_at' => now()->subMinutes(2),
+            'processing_at' => now()->subMinute(),
+            'shipped_at' => now(),
+        ]);
     }
 
     public function delivered(): static
     {
-        return $this->state(fn () => ['status' => OrderStatus::Delivered]);
+        return $this->state(fn () => [
+            'status' => OrderStatus::Delivered,
+            'paid_at' => now()->subMinutes(3),
+            'processing_at' => now()->subMinutes(2),
+            'shipped_at' => now()->subMinute(),
+            'delivered_at' => now(),
+        ]);
     }
 
     public function cancelled(): static

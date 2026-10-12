@@ -3,6 +3,8 @@
 namespace App\Services\Orders;
 
 use App\Enums\OrderStatus;
+use App\Enums\OrderStatusSource;
+use App\Events\OrderStatusChanged;
 use App\Exceptions\Orders\InvalidOrderStatusException;
 use App\Models\Order;
 use App\Models\Product;
@@ -23,21 +25,28 @@ use Illuminate\Support\Facades\DB;
  */
 class CancelOrderService
 {
-    public function __construct(private readonly CatalogCache $catalogCache) {}
+    public function __construct(
+        private readonly CatalogCache $catalogCache,
+        private readonly OrderStatusRecorder $recorder,
+    ) {}
 
     public function cancel(Order $order): CancelOrderResult
     {
-        $result = DB::transaction(function () use ($order) {
+        $from = null;
+
+        $result = DB::transaction(function () use ($order, &$from) {
             /** @var Order $locked */
             $locked = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
 
             if ($locked->status === OrderStatus::Cancelled) {
-                return new CancelOrderResult($locked->loadMissing('items'), replayed: true);
+                return new CancelOrderResult($locked->loadMissing(['items', 'statusChanges']), replayed: true);
             }
 
             if (! $locked->canBeCancelled()) {
                 throw new InvalidOrderStatusException($locked->status);
             }
+
+            $from = $locked->status;
 
             $affected = Order::query()
                 ->whereKey($locked->id)
@@ -52,7 +61,7 @@ class CancelOrderService
                 $locked->refresh();
 
                 if ($locked->status === OrderStatus::Cancelled) {
-                    return new CancelOrderResult($locked->loadMissing('items'), replayed: true);
+                    return new CancelOrderResult($locked->loadMissing(['items', 'statusChanges']), replayed: true);
                 }
 
                 throw new InvalidOrderStatusException($locked->status);
@@ -61,11 +70,26 @@ class CancelOrderService
             $this->restoreStock($locked);
             $this->releasePromotion($locked);
 
-            return new CancelOrderResult($locked->fresh()->loadMissing('items'));
+            $fresh = $locked->fresh()->loadMissing(['items', 'statusChanges']);
+            $this->recorder->record(
+                $fresh,
+                $from,
+                OrderStatus::Cancelled,
+                OrderStatusSource::Cancel,
+                $fresh->user_id,
+            );
+
+            return new CancelOrderResult($fresh->load('statusChanges'));
         });
 
         if (! $result->replayed) {
             $this->catalogCache->bump();
+            OrderStatusChanged::dispatch(
+                $result->order->id,
+                $from,
+                OrderStatus::Cancelled,
+                OrderStatusSource::Cancel,
+            );
         }
 
         return $result;

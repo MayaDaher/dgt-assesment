@@ -52,6 +52,7 @@ class CheckoutTest extends TestCase
         $this->getJson('/api/orders')->assertUnauthorized();
         $this->getJson('/api/orders/1')->assertUnauthorized();
         $this->postJson('/api/orders/1/cancel')->assertUnauthorized();
+        $this->postJson('/api/orders/1/pay')->assertUnauthorized();
     }
 
     public function test_empty_cart_cannot_be_checked_out(): void

@@ -37,4 +37,14 @@ class OrderStatusTest extends TestCase
         $this->assertFalse(OrderStatus::Delivered->canTransitionTo(OrderStatus::Shipped));
         $this->assertTrue(OrderStatus::Pending->canTransitionTo(OrderStatus::Paid));
     }
+
+    public function test_each_status_stamps_a_single_occurred_at_column(): void
+    {
+        $this->assertNull(OrderStatus::Pending->occurredAtColumn());
+        $this->assertSame('paid_at', OrderStatus::Paid->occurredAtColumn());
+        $this->assertSame('processing_at', OrderStatus::Processing->occurredAtColumn());
+        $this->assertSame('shipped_at', OrderStatus::Shipped->occurredAtColumn());
+        $this->assertSame('delivered_at', OrderStatus::Delivered->occurredAtColumn());
+        $this->assertSame('cancelled_at', OrderStatus::Cancelled->occurredAtColumn());
+    }
 }

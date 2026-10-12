@@ -3,6 +3,8 @@
 namespace App\Services\Orders;
 
 use App\Enums\OrderStatus;
+use App\Enums\OrderStatusSource;
+use App\Events\OrderStatusChanged;
 use App\Exceptions\Orders\InvalidOrderTransitionException;
 use App\Models\Order;
 use Illuminate\Support\Facades\DB;
@@ -15,9 +17,13 @@ use Illuminate\Support\Facades\DB;
  */
 class AdvanceOrderStatusService
 {
-    public function advance(Order $order, OrderStatus $next): Order
+    public function __construct(private readonly OrderStatusRecorder $recorder) {}
+
+    public function advance(Order $order, OrderStatus $next, ?int $actorId = null): Order
     {
-        return DB::transaction(function () use ($order, $next) {
+        $from = null;
+
+        $updated = DB::transaction(function () use ($order, $next, $actorId, &$from) {
             /** @var Order $locked */
             $locked = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
 
@@ -25,9 +31,16 @@ class AdvanceOrderStatusService
                 throw new InvalidOrderTransitionException($locked->status, $next);
             }
 
-            $locked->update(['status' => $next]);
+            $from = $locked->status;
+            $this->recorder->transition($locked, $next, OrderStatusSource::Admin, $actorId);
 
-            return $locked->fresh()->loadMissing(['items', 'user']);
+            return $locked->fresh()->loadMissing(['items', 'user', 'statusChanges']);
         });
+
+        if ($from !== null) {
+            OrderStatusChanged::dispatch($updated->id, $from, $next, OrderStatusSource::Admin);
+        }
+
+        return $updated;
     }
 }

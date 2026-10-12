@@ -3,36 +3,55 @@
 namespace App\Http\Controllers\Api;
 
 use App\Http\Controllers\Controller;
+use App\Http\Requests\Orders\ListOrdersRequest;
 use App\Http\Resources\OrderResource;
 use App\Http\Responses\ApiResponse;
 use App\Models\Order;
 use App\Services\Orders\CancelOrderService;
+use App\Services\Orders\CapturePaymentService;
 use Illuminate\Http\JsonResponse;
-use Illuminate\Http\Request;
 
 class OrderController extends Controller
 {
-    public function __construct(private readonly CancelOrderService $canceller) {}
+    public function __construct(
+        private readonly CancelOrderService $canceller,
+        private readonly CapturePaymentService $payments,
+    ) {}
 
-    public function index(Request $request): JsonResponse
+    public function index(ListOrdersRequest $request): JsonResponse
     {
         $this->authorize('viewAny', Order::class);
+
+        $filters = $request->filters();
 
         $orders = $request->user()
             ->orders()
             ->with('items')
+            ->filtered($filters)
             ->latest('id')
-            ->paginate(15)
+            ->paginate($filters->perPage)
             ->withQueryString();
 
         return ApiResponse::success(OrderResource::collection($orders));
     }
 
-    public function show(Request $request, Order $order): JsonResponse
+    public function show(Order $order): JsonResponse
     {
         $this->authorize('view', $order);
 
-        return ApiResponse::success(new OrderResource($order->loadMissing('items')));
+        return ApiResponse::success(new OrderResource($order->loadMissing(['items', 'statusChanges'])));
+    }
+
+    public function pay(Order $order): JsonResponse
+    {
+        $this->authorize('pay', $order);
+
+        $result = $this->payments->capture($order, $order->user_id);
+
+        return ApiResponse::success(
+            new OrderResource($result->order->loadMissing(['items', 'statusChanges'])),
+            $result->replayed ? 'Order already paid.' : 'Payment captured.',
+        );
     }
 
     public function cancel(Order $order): JsonResponse
@@ -42,7 +61,7 @@ class OrderController extends Controller
         $result = $this->canceller->cancel($order);
 
         return ApiResponse::success(
-            new OrderResource($result->order->loadMissing('items')),
+            new OrderResource($result->order->loadMissing(['items', 'statusChanges'])),
             $result->replayed ? 'Order already cancelled.' : 'Order cancelled.',
         );
     }

@@ -27,6 +27,11 @@ class OrderPolicy
         return $user->isAdmin();
     }
 
+    public function pay(User $user, Order $order): bool
+    {
+        return $user->id === $order->user_id;
+    }
+
     public function cancel(User $user, Order $order): bool
     {
         return $user->id === $order->user_id;

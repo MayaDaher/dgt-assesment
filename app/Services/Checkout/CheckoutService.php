@@ -4,6 +4,7 @@ namespace App\Services\Checkout;
 
 use App\Enums\CartLineIssue;
 use App\Enums\OrderStatus;
+use App\Enums\OrderStatusSource;
 use App\Enums\ProductStatus;
 use App\Enums\PromotionError;
 use App\Events\OrderPlaced;
@@ -23,6 +24,7 @@ use App\Services\Cart\CartLine;
 use App\Services\Cart\CartSummary;
 use App\Services\Catalog\CatalogCache;
 use App\Services\Inventory\StockReservationService;
+use App\Services\Orders\OrderStatusRecorder;
 use App\Services\Promotions\PromotionEligibility;
 use App\Support\Money;
 use Illuminate\Database\Eloquent\ModelNotFoundException;
@@ -47,6 +49,7 @@ class CheckoutService
         private readonly PromotionEligibility $eligibility,
         private readonly CatalogCache $catalogCache,
         private readonly StockReservationService $reservations,
+        private readonly OrderStatusRecorder $statuses,
     ) {}
 
     public function place(User $user, ?string $idempotencyKey = null): CheckoutResult
@@ -75,11 +78,18 @@ class CheckoutService
                 $this->consumePromotion($summary, $user);
 
                 $order = $this->createOrder($summary, $user, $key);
+                $this->statuses->record(
+                    $order,
+                    from: null,
+                    to: OrderStatus::Pending,
+                    source: OrderStatusSource::Checkout,
+                    actorId: $user->id,
+                );
 
                 $cart->items()->delete();
                 $cart->update(['promotion_id' => null]);
 
-                return new CheckoutResult($order->load('items'));
+                return new CheckoutResult($order->load(['items', 'statusChanges']));
             });
         } catch (UniqueConstraintViolationException $exception) {
             // Two retries with the same key can both pass the SELECT and then collide on insert.
@@ -110,7 +120,7 @@ class CheckoutService
         return Order::query()
             ->where('user_id', $user->id)
             ->where('idempotency_key', $key)
-            ->with('items')
+            ->with(['items', 'statusChanges'])
             ->first();
     }
 

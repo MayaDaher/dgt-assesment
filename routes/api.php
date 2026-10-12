@@ -50,6 +50,10 @@ Route::middleware('auth:sanctum')->group(function () {
     Route::controller(OrderController::class)->prefix('orders')->name('orders.')->group(function () {
         Route::get('/', 'index')->name('index');
         Route::get('/{order}', 'show')->whereNumber('order')->name('show');
+        Route::post('/{order}/pay', 'pay')
+            ->middleware('throttle:checkout')
+            ->whereNumber('order')
+            ->name('pay');
         Route::post('/{order}/cancel', 'cancel')
             ->middleware('throttle:checkout')
             ->whereNumber('order')

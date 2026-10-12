@@ -49,6 +49,22 @@ enum OrderStatus: string
     }
 
     /**
+     * Column stamped the first time this status is reached. Pending has none
+     * because created_at is the placement time.
+     */
+    public function occurredAtColumn(): ?string
+    {
+        return match ($this) {
+            self::Paid => 'paid_at',
+            self::Processing => 'processing_at',
+            self::Shipped => 'shipped_at',
+            self::Delivered => 'delivered_at',
+            self::Cancelled => 'cancelled_at',
+            self::Pending => null,
+        };
+    }
+
+    /**
      * @return list<string>
      */
     public static function values(): array

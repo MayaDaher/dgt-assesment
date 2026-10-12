@@ -16,6 +16,8 @@ class OrderResource extends JsonResource
      */
     public function toArray(Request $request): array
     {
+        $admin = $request->user()?->isAdmin() === true;
+
         return [
             'id' => $this->id,
             'order_number' => $this->order_number,
@@ -33,8 +35,21 @@ class OrderResource extends JsonResource
                 'id' => $this->promotion_id,
                 'code' => $this->promotion_code,
             ],
+            'payable' => $this->canBePaid(),
             'cancellable' => $this->canBeCancelled(),
+            'allowed_statuses' => $this->when(
+                $admin,
+                fn () => array_map(
+                    fn ($status) => $status->value,
+                    $this->status->allowedAdminTransitions(),
+                ),
+            ),
+            'status_history' => OrderStatusChangeResource::collection($this->whenLoaded('statusChanges')),
             'created_at' => $this->created_at?->toIso8601String(),
+            'paid_at' => $this->paid_at?->toIso8601String(),
+            'processing_at' => $this->processing_at?->toIso8601String(),
+            'shipped_at' => $this->shipped_at?->toIso8601String(),
+            'delivered_at' => $this->delivered_at?->toIso8601String(),
             'cancelled_at' => $this->cancelled_at?->toIso8601String(),
         ];
     }
