@@ -1,0 +1,70 @@
+<?php
+
+namespace App\Http\Controllers\Api\Admin;
+
+use App\Enums\ProductStatus;
+use App\Http\Controllers\Controller;
+use App\Http\Requests\Admin\StoreProductRequest;
+use App\Http\Requests\Admin\UpdateProductRequest;
+use App\Http\Resources\ProductResource;
+use App\Http\Responses\ApiResponse;
+use App\Models\Product;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+use Illuminate\Validation\Rule;
+
+class ProductController extends Controller
+{
+    public function index(Request $request): JsonResponse
+    {
+        $request->validate([
+            'search' => ['sometimes', 'nullable', 'string', 'max:100'],
+            'status' => ['sometimes', 'nullable', Rule::enum(ProductStatus::class)],
+            'per_page' => ['sometimes', 'nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $products = Product::query()
+            ->with('category')
+            ->search($request->input('search'))
+            ->when($request->filled('status'), fn ($q) => $q->where('status', $request->input('status')))
+            ->latest('id')
+            ->paginate((int) $request->input('per_page', 15))
+            ->withQueryString();
+
+        return ApiResponse::success(ProductResource::collection($products));
+    }
+
+    public function store(StoreProductRequest $request): JsonResponse
+    {
+        $product = Product::query()->create($request->validated());
+
+        return ApiResponse::created(new ProductResource($product->load('category')), 'Product created.');
+    }
+
+    public function show(Product $product): JsonResponse
+    {
+        return ApiResponse::success(new ProductResource($product->loadMissing('category')));
+    }
+
+    public function update(UpdateProductRequest $request, Product $product): JsonResponse
+    {
+        $product->update($request->validated());
+
+        return ApiResponse::success(new ProductResource($product->fresh()->load('category')), 'Product updated.');
+    }
+
+    public function destroy(Product $product): JsonResponse
+    {
+        $product->delete();
+
+        return ApiResponse::success(null, 'Product deleted.');
+    }
+
+    public function restore(int $product): JsonResponse
+    {
+        $product = Product::onlyTrashed()->findOrFail($product);
+        $product->restore();
+
+        return ApiResponse::success(new ProductResource($product->load('category')), 'Product restored.');
+    }
+}

@@ -1,5 +1,8 @@
 <?php
 
+use App\Http\Controllers\Api\Admin\CategoryController as AdminCategoryController;
+use App\Http\Controllers\Api\Admin\ProductController as AdminProductController;
+use App\Http\Controllers\Api\Admin\PromotionController as AdminPromotionController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CartController;
 use App\Http\Controllers\Api\CategoryController;
@@ -50,6 +53,15 @@ Route::middleware('auth:sanctum')->group(function () {
             ->whereNumber('order')
             ->name('cancel');
     });
+});
+
+Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->name('admin.')->group(function () {
+    Route::apiResource('categories', AdminCategoryController::class);
+    Route::apiResource('products', AdminProductController::class);
+    Route::post('/products/{product}/restore', [AdminProductController::class, 'restore'])
+        ->whereNumber('product')
+        ->name('products.restore');
+    Route::apiResource('promotions', AdminPromotionController::class);
 });
 
 Route::prefix('auth')->name('auth.')->controller(AuthController::class)->group(function () {

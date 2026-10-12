@@ -649,6 +649,43 @@ try {
     Check 'Shipped order cannot be cancelled (422 INVALID_ORDER_STATUS)' ($r.Status -eq 422 -and $r.Json.code -eq 'INVALID_ORDER_STATUS' -and $r.Json.details.current_status -eq 'shipped')
 
     # =======================================================================
+    Section 'Admin catalog'
+    # =======================================================================
+    $r = Api POST '/admin/categories' @{ name = "Smoke Cat $RunId" }
+    Check 'Guest admin category create returns 401' ($r.Status -eq 401)
+
+    $r = Api POST '/admin/products' @{ name = 'Nope'; sku = "SMOKE-$RunId"; price = '1.00'; stock_quantity = 1 } $CustomerToken
+    Check 'Customer cannot create a product (403)' ($r.Status -eq 403 -and $r.Json.code -eq 'FORBIDDEN')
+
+    $r = Api POST '/admin/categories' @{ name = "Smoke Cat $RunId"; slug = "smoke-cat-$RunId" } $AdminToken
+    Check 'Admin can create a category' ($r.Status -eq 201 -and $r.Json.data.slug -eq "smoke-cat-$RunId") "status=$($r.Status) $($r.Raw)"
+    $SmokeCategoryId = $r.Json.data.id
+
+    $r = Api POST '/admin/products' @{ name = "Smoke Gadget $RunId"; sku = "smoke-$RunId"; price = '9.99'; stock_quantity = 3; status = 'inactive'; category_id = $SmokeCategoryId } $AdminToken
+    Check 'Admin can create an inactive product' ($r.Status -eq 201 -and $r.Json.data.sku -eq "SMOKE-$RunId" -and $r.Json.data.status -eq 'inactive') "status=$($r.Status) $($r.Raw)"
+    $SmokeProductId = $r.Json.data.id
+    Check 'Inactive admin product is hidden from the storefront' ((Api GET "/products/$SmokeProductId").Status -eq 404)
+
+    $r = Api PATCH "/admin/products/$SmokeProductId" @{ status = 'active' } $AdminToken
+    Check 'Admin can activate the product' ($r.Status -eq 200 -and $r.Json.data.status -eq 'active')
+    Check 'Activated product appears on the storefront' ((Api GET "/products/$SmokeProductId").Status -eq 200 -and (Api GET "/products/$SmokeProductId").Json.data.name -eq "Smoke Gadget $RunId")
+
+    $r = Api POST '/admin/promotions' @{ code = "smoke$RunId"; type = 'fixed'; value = '3.00'; min_cart_amount = '10.00' } $AdminToken
+    Check 'Admin can create a promotion' ($r.Status -eq 201 -and $r.Json.data.code -eq ("SMOKE$RunId".ToUpper()) -and $r.Json.data.used_count -eq 0) "status=$($r.Status) $($r.Raw)"
+    $SmokePromoId = $r.Json.data.id
+
+    $r = Api DELETE "/admin/products/$SmokeProductId" -Token $AdminToken
+    Check 'Admin can soft-delete a product' ($r.Status -eq 200) "status=$($r.Status) $($r.Raw)"
+    Check 'Deleted product is hidden from the storefront' ((Api GET "/products/$SmokeProductId").Status -eq 404)
+
+    $r = Api POST "/admin/products/$SmokeProductId/restore" -Token $AdminToken
+    Check 'Admin can restore a deleted product' ($r.Status -eq 200 -and $r.Json.data.id -eq $SmokeProductId) "status=$($r.Status) $($r.Raw)"
+
+    $null = Api DELETE "/admin/products/$SmokeProductId" -Token $AdminToken
+    $null = Api DELETE "/admin/promotions/$SmokePromoId" -Token $AdminToken
+    $null = Api DELETE "/admin/categories/$SmokeCategoryId" -Token $AdminToken
+
+    # =======================================================================
     Section 'Checkout: rate limiting'
     # =======================================================================
     $tokenOutput = Tinker "echo App\Models\User::factory()->create(['email' => 'smoke+checkoutlimit$RunId@example.com'])->createToken('smoke')->plainTextToken;"
@@ -670,7 +707,7 @@ try {
 }
 finally {
     Section 'Restoring seeded data'
-    $null = Tinker "App\Models\Product::withTrashed()->find($AirPods)?->update(['price' => '249.00']); App\Models\Product::withTrashed()->find($Sneakers)?->update(['stock_quantity' => 5, 'price' => '120.00', 'name' => 'Limited Edition Sneakers']); App\Models\Product::withTrashed()->find($Jacket)?->update(['stock_quantity' => 35]); App\Models\Product::withTrashed()->find($Espresso)?->update(['status' => 'active']); App\Models\Product::withTrashed()->whereKey([$Sony, $Book])->restore(); App\Models\Promotion::where('code', 'SUMMER20')->update(['used_count' => 0]); App\Models\PromotionUsage::whereNotNull('order_id')->delete(); App\Models\Order::query()->delete(); App\Models\User::where('email', 'like', 'smoke+%@example.com')->each(fn (`$u) => `$u->delete());"
+    $null = Tinker "App\Models\Product::withTrashed()->find($AirPods)?->update(['price' => '249.00']); App\Models\Product::withTrashed()->find($Sneakers)?->update(['stock_quantity' => 5, 'price' => '120.00', 'name' => 'Limited Edition Sneakers']); App\Models\Product::withTrashed()->find($Jacket)?->update(['stock_quantity' => 35]); App\Models\Product::withTrashed()->find($Espresso)?->update(['status' => 'active']); App\Models\Product::withTrashed()->whereKey([$Sony, $Book])->restore(); App\Models\Product::withTrashed()->where('sku', 'like', 'SMOKE-%')->forceDelete(); App\Models\Promotion::where('code', 'SUMMER20')->update(['used_count' => 0]); App\Models\Promotion::withTrashed()->where('code', 'like', 'SMOKE%')->forceDelete(); App\Models\Category::where('slug', 'like', 'smoke-%')->delete(); App\Models\PromotionUsage::whereNotNull('order_id')->delete(); App\Models\Order::query()->delete(); App\Models\User::where('email', 'like', 'smoke+%@example.com')->each(fn (`$u) => `$u->delete());"
     Write-Host '  Seeded products restored and smoke-test users removed.'
     Remove-Item -Recurse -Force $TempDir -ErrorAction SilentlyContinue
 }
