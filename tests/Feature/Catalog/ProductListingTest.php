@@ -66,6 +66,45 @@ class ProductListingTest extends TestCase
             ->assertJsonPath('data.0.id', $match->id);
     }
 
+    public function test_it_searches_by_sku(): void
+    {
+        $match = Product::factory()->create(['name' => 'Plain Sneaker', 'sku' => 'SNK-LTD-001']);
+        Product::factory()->create(['name' => 'Other Sneaker', 'sku' => 'SHO-BOT-CLS']);
+
+        $this->getJson('/api/products?search=snk-ltd')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $match->id)
+            ->assertJsonPath('data.0.sku', 'SNK-LTD-001');
+    }
+
+    public function test_it_searches_by_description(): void
+    {
+        $match = Product::factory()->create([
+            'name' => 'Widget',
+            'description' => 'Only a handful available. Used for the concurrency demo.',
+        ]);
+        Product::factory()->create(['name' => 'Gadget', 'description' => 'USB-C charging cable.']);
+
+        $this->getJson('/api/products?search=concurrency demo')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $match->id);
+    }
+
+    public function test_search_does_not_leak_products_outside_the_selected_category(): void
+    {
+        $audio = Category::factory()->create(['slug' => 'audio']);
+        $other = Category::factory()->create(['slug' => 'other']);
+        $inCategory = Product::factory()->for($audio)->create(['sku' => 'AUD-MATCH-1', 'name' => 'Speaker']);
+        Product::factory()->for($other)->create(['sku' => 'AUD-MATCH-2', 'name' => 'Cable']);
+
+        $this->getJson('/api/products?search=AUD-MATCH&category=audio')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $inCategory->id);
+    }
+
     public function test_it_filters_by_price_range(): void
     {
         Product::factory()->priced(10)->create();
@@ -96,6 +135,19 @@ class ProductListingTest extends TestCase
             ->assertJsonCount(1, 'data')
             ->assertJsonPath('data.0.id', $outOfStock->id)
             ->assertJsonPath('data.0.in_stock', false);
+    }
+
+    public function test_sku_search_hides_inactive_and_deleted_products(): void
+    {
+        Product::factory()->inactive()->create(['sku' => 'HID-SKU-1']);
+        $deleted = Product::factory()->create(['sku' => 'HID-SKU-2']);
+        $deleted->delete();
+        $visible = Product::factory()->create(['sku' => 'HID-SKU-3']);
+
+        $this->getJson('/api/products?search=HID-SKU')
+            ->assertOk()
+            ->assertJsonCount(1, 'data')
+            ->assertJsonPath('data.0.id', $visible->id);
     }
 
     public function test_it_filters_by_category_including_subcategories(): void

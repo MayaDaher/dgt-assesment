@@ -98,6 +98,10 @@ class Product extends Model
     }
 
     /**
+     * Case-insensitive substring match on name, SKU or description.
+     * `%` and `_` in the term are treated as literals. The OR group is
+     * wrapped so combining search with category/price filters stays an AND.
+     *
      * @param  Builder<Product>  $query
      */
     #[Scope]
@@ -110,8 +114,14 @@ class Product extends Model
         }
 
         $escaped = str_replace(['!', '%', '_'], ['!!', '!%', '!_'], $term);
+        $like = "%{$escaped}%";
 
-        $query->whereRaw("name LIKE ? ESCAPE '!'", ["%{$escaped}%"]);
+        $query->where(function (Builder $inner) use ($like) {
+            $inner
+                ->whereRaw("name LIKE ? ESCAPE '!'", [$like])
+                ->orWhereRaw("sku LIKE ? ESCAPE '!'", [$like])
+                ->orWhereRaw("description LIKE ? ESCAPE '!'", [$like]);
+        });
     }
 
     /**

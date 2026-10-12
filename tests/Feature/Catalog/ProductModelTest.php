@@ -68,11 +68,15 @@ class ProductModelTest extends TestCase
     {
         $phone = Product::factory()->create(['name' => 'Galaxy Phone']);
         $sale = Product::factory()->create(['name' => 'Mega 50% Sale Pack']);
+        $bySku = Product::factory()->create(['name' => 'Unrelated', 'sku' => 'SNK-FIND-9']);
+        $byDescription = Product::factory()->create(['name' => 'Plain', 'description' => 'Unique foobar phrase']);
         Product::factory()->create(['name' => 'Mega 500 Sale Pack']);
 
         $this->assertSame([$phone->id], Product::query()->search('galaxy')->pluck('id')->all());
         $this->assertSame([$sale->id], Product::query()->search('50%')->pluck('id')->all());
-        $this->assertSame(3, Product::query()->search('   ')->count());
+        $this->assertSame([$bySku->id], Product::query()->search('snk-find')->pluck('id')->all());
+        $this->assertSame([$byDescription->id], Product::query()->search('FOOBAR')->pluck('id')->all());
+        $this->assertSame(5, Product::query()->search('   ')->count());
     }
 
     public function test_price_between_scope_is_inclusive_and_accepts_open_ranges(): void
