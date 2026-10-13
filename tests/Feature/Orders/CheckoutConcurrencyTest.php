@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Models\Product;
 use App\Models\User;
 use App\Services\Checkout\CheckoutService;
+use App\Services\Checkout\ShippingAddress;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Laravel\Sanctum\Sanctum;
 use Tests\TestCase;
@@ -53,7 +54,7 @@ class CheckoutConcurrencyTest extends TestCase
             ->assertJsonPath('details.available_quantity', 1);
 
         Sanctum::actingAs($buyerA);
-        $this->postJson('/api/checkout')->assertCreated();
+        $this->checkout()->assertCreated();
         $this->assertSame(1, $product->fresh()->stock_quantity);
 
         Sanctum::actingAs($buyerB);
@@ -73,14 +74,14 @@ class CheckoutConcurrencyTest extends TestCase
         $this->cartFor($buyerB, $product, 3);
 
         Sanctum::actingAs($buyerA);
-        $this->postJson('/api/checkout')
+        $this->checkout()
             ->assertCreated()
             ->assertJsonPath('data.items.0.quantity', 4);
 
         $this->assertSame(1, $product->fresh()->stock_quantity);
 
         Sanctum::actingAs($buyerB);
-        $this->postJson('/api/checkout')
+        $this->checkout()
             ->assertConflict()
             ->assertJsonPath('code', 'INSUFFICIENT_STOCK')
             ->assertJsonPath('details.requested_quantity', 3)
@@ -104,10 +105,10 @@ class CheckoutConcurrencyTest extends TestCase
         $this->cartFor($buyerB, $product, 3);
 
         Sanctum::actingAs($buyerA);
-        $this->postJson('/api/checkout')->assertCreated();
+        $this->checkout()->assertCreated();
 
         Sanctum::actingAs($buyerB);
-        $this->postJson('/api/checkout')->assertCreated();
+        $this->checkout()->assertCreated();
 
         $this->assertSame(0, $product->fresh()->stock_quantity);
         $this->assertSame(2, Order::query()->count());
@@ -125,10 +126,10 @@ class CheckoutConcurrencyTest extends TestCase
         $this->cartFor($buyerB, $product, 2);
 
         Sanctum::actingAs($buyerA);
-        $this->postJson('/api/checkout')->assertCreated();
+        $this->checkout()->assertCreated();
 
         Sanctum::actingAs($buyerB);
-        $this->postJson('/api/checkout')
+        $this->checkout()
             ->assertConflict()
             ->assertJsonPath('code', 'INSUFFICIENT_STOCK')
             ->assertJsonPath('details.available_quantity', 0);
@@ -148,10 +149,10 @@ class CheckoutConcurrencyTest extends TestCase
         $this->cartFor($buyerB, $product, 3);
 
         Sanctum::actingAs($buyerA);
-        $orderId = $this->postJson('/api/checkout')->assertCreated()->json('data.id');
+        $orderId = $this->checkout()->assertCreated()->json('data.id');
 
         Sanctum::actingAs($buyerB);
-        $this->postJson('/api/checkout')->assertConflict();
+        $this->checkout()->assertConflict();
         $this->assertSame(1, $product->fresh()->stock_quantity);
 
         Sanctum::actingAs($buyerA);
@@ -162,7 +163,7 @@ class CheckoutConcurrencyTest extends TestCase
         $this->assertSame(5, $product->fresh()->stock_quantity);
 
         Sanctum::actingAs($buyerB);
-        $this->postJson('/api/checkout')
+        $this->checkout()
             ->assertCreated()
             ->assertJsonPath('data.items.0.quantity', 3);
 
@@ -182,12 +183,13 @@ class CheckoutConcurrencyTest extends TestCase
 
         $checkout = $this->app->make(CheckoutService::class);
 
-        $first = $checkout->place($buyerA);
+        $shipping = ShippingAddress::fromArray($this->shippingPayload()['shipping']);
+        $first = $checkout->place(Cart::query()->where('user_id', $buyerA->id)->firstOrFail(), $shipping, $buyerA);
         $this->assertSame(OrderStatus::Pending, $first->order->status);
         $this->assertSame(1, $product->fresh()->stock_quantity);
 
         try {
-            $checkout->place($buyerB);
+            $checkout->place(Cart::query()->where('user_id', $buyerB->id)->firstOrFail(), $shipping, $buyerB);
             $this->fail('The second overlapping checkout should have been rejected.');
         } catch (InsufficientStockException $exception) {
             $this->assertSame('INSUFFICIENT_STOCK', $exception->errorCode());
@@ -215,10 +217,10 @@ class CheckoutConcurrencyTest extends TestCase
         CartItem::factory()->for($cartB)->for($second)->create(['quantity' => 1]);
 
         Sanctum::actingAs($buyerA);
-        $this->postJson('/api/checkout')->assertCreated();
+        $this->checkout()->assertCreated();
 
         Sanctum::actingAs($buyerB);
-        $this->postJson('/api/checkout')->assertCreated();
+        $this->checkout()->assertCreated();
 
         $this->assertSame(0, $first->fresh()->stock_quantity);
         $this->assertSame(0, $second->fresh()->stock_quantity);

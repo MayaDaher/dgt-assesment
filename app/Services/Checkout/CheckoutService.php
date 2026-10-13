@@ -40,7 +40,7 @@ use Illuminate\Support\Facades\DB;
  * (`WHERE stock_quantity >= quantity`), so two buyers cannot push inventory below zero.
  *
  * Cart reservations are released after the decrement so the same units are not
- * subtracted twice. Checkout still requires an authenticated user.
+ * subtracted twice.
  */
 class CheckoutService
 {
@@ -52,32 +52,37 @@ class CheckoutService
         private readonly OrderStatusRecorder $statuses,
     ) {}
 
-    public function place(User $user, ?string $idempotencyKey = null): CheckoutResult
-    {
+    public function place(
+        Cart $cart,
+        ShippingAddress $shipping,
+        User $user,
+        ?string $idempotencyKey = null,
+    ): CheckoutResult {
         $key = filled($idempotencyKey) ? trim((string) $idempotencyKey) : null;
+        $scope = 'u:'.$user->id;
 
         try {
-            $result = DB::transaction(function () use ($user, $key) {
-                $cart = Cart::query()->where('user_id', $user->id)->lockForUpdate()->first();
+            $result = DB::transaction(function () use ($cart, $shipping, $user, $key, $scope) {
+                $locked = Cart::query()->whereKey($cart->id)->lockForUpdate()->first();
 
-                $replayed = $this->existingOrder($user, $key);
+                $replayed = $this->existingOrder($scope, $key);
 
                 if ($replayed !== null) {
                     return new CheckoutResult($replayed, replayed: true);
                 }
 
-                if ($cart === null || $cart->items()->doesntExist()) {
+                if ($locked === null || $locked->items()->doesntExist()) {
                     throw new EmptyCartException;
                 }
 
-                $summary = $this->summarizeLockedCart($cart, $user);
+                $summary = $this->summarizeLockedCart($locked, $user);
                 $this->assertReady($summary);
 
                 $this->decrementStock($summary);
-                $this->reservations->release($cart);
+                $this->reservations->release($locked);
                 $this->consumePromotion($summary, $user);
 
-                $order = $this->createOrder($summary, $user, $key);
+                $order = $this->createOrder($summary, $shipping, $user, $key, $scope);
                 $this->statuses->record(
                     $order,
                     from: null,
@@ -86,15 +91,15 @@ class CheckoutService
                     actorId: $user->id,
                 );
 
-                $cart->items()->delete();
-                $cart->update(['promotion_id' => null]);
+                $locked->items()->delete();
+                $locked->update(['promotion_id' => null]);
 
                 return new CheckoutResult($order->load(['items', 'statusChanges']));
             });
         } catch (UniqueConstraintViolationException $exception) {
             // Two retries with the same key can both pass the SELECT and then collide on insert.
             // The failed transaction is rolled back (stock is not taken twice); return the winner.
-            $replayed = $this->existingOrder($user, $key);
+            $replayed = $this->existingOrder($scope, $key);
 
             if ($replayed !== null && $this->isIdempotencyCollision($exception)) {
                 return new CheckoutResult($replayed, replayed: true);
@@ -111,14 +116,14 @@ class CheckoutService
         return $result;
     }
 
-    private function existingOrder(User $user, ?string $key): ?Order
+    private function existingOrder(?string $scope, ?string $key): ?Order
     {
-        if ($key === null) {
+        if ($scope === null || $key === null) {
             return null;
         }
 
         return Order::query()
-            ->where('user_id', $user->id)
+            ->where('idempotency_scope', $scope)
             ->where('idempotency_key', $key)
             ->with(['items', 'statusChanges'])
             ->first();
@@ -126,7 +131,7 @@ class CheckoutService
 
     private function isIdempotencyCollision(UniqueConstraintViolationException $exception): bool
     {
-        return str_contains($exception->getMessage(), 'idempotency_key');
+        return str_contains($exception->getMessage(), 'idempotency');
     }
 
     private function summarizeLockedCart(Cart $cart, User $user): CartSummary
@@ -250,8 +255,13 @@ class CheckoutService
         }
     }
 
-    private function createOrder(CartSummary $summary, User $user, ?string $idempotencyKey): Order
-    {
+    private function createOrder(
+        CartSummary $summary,
+        ShippingAddress $shipping,
+        User $user,
+        ?string $idempotencyKey,
+        string $idempotencyScope,
+    ): Order {
         $order = Order::query()->create([
             'user_id' => $user->id,
             'promotion_id' => $summary->promotion?->id,
@@ -261,6 +271,8 @@ class CheckoutService
             'discount_amount' => Money::format($summary->discountCents),
             'total' => Money::format($summary->totalCents()),
             'idempotency_key' => $idempotencyKey,
+            'idempotency_scope' => $idempotencyKey !== null ? $idempotencyScope : null,
+            ...$shipping->toOrderAttributes(),
         ]);
 
         foreach ($summary->lines as $line) {

@@ -4,6 +4,7 @@ use App\Http\Controllers\Api\Admin\CategoryController as AdminCategoryController
 use App\Http\Controllers\Api\Admin\OrderController as AdminOrderController;
 use App\Http\Controllers\Api\Admin\ProductAuditController as AdminProductAuditController;
 use App\Http\Controllers\Api\Admin\ProductController as AdminProductController;
+use App\Http\Controllers\Api\Admin\PromotionAuditController as AdminPromotionAuditController;
 use App\Http\Controllers\Api\Admin\PromotionController as AdminPromotionController;
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\CartController;
@@ -75,6 +76,10 @@ Route::middleware(['auth:sanctum', 'role:admin'])->prefix('admin')->name('admin.
     Route::post('/promotions/{promotion}/restore', [AdminPromotionController::class, 'restore'])
         ->whereNumber('promotion')
         ->name('promotions.restore');
+    Route::get('/promotions/{promotion}/audits', [AdminPromotionAuditController::class, 'index'])
+        ->whereNumber('promotion')
+        ->name('promotions.audits');
+    Route::get('/promotion-audits', [AdminPromotionAuditController::class, 'indexAll'])->name('promotion-audits.index');
 
     Route::controller(AdminOrderController::class)->prefix('orders')->name('orders.')->group(function () {
         Route::get('/', 'index')->name('index');

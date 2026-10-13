@@ -64,7 +64,7 @@ class ProductListingCacheTest extends TestCase
         $this->getJson('/api/products')->assertJsonPath('data.0.stock_quantity', 5);
 
         Sanctum::actingAs($customer);
-        $this->postJson('/api/checkout')->assertCreated();
+        $this->checkout()->assertCreated();
 
         $this->getJson('/api/products')->assertJsonPath('data.0.stock_quantity', 3);
     }

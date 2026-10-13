@@ -22,6 +22,11 @@ class OrderResource extends JsonResource
             'id' => $this->id,
             'order_number' => $this->order_number,
             'status' => $this->status->value,
+            'email' => $this->when(
+                $this->relationLoaded('user'),
+                fn () => $this->user?->email,
+            ),
+            'shipping' => $this->shipping(),
             'customer' => $this->when(
                 $this->relationLoaded('user'),
                 fn () => $this->user === null ? null : new UserResource($this->user),

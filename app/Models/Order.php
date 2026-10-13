@@ -32,6 +32,15 @@ class Order extends Model
         'discount_amount',
         'total',
         'idempotency_key',
+        'idempotency_scope',
+        'shipping_name',
+        'shipping_phone',
+        'shipping_address_line1',
+        'shipping_address_line2',
+        'shipping_city',
+        'shipping_state',
+        'shipping_postal_code',
+        'shipping_country',
         'cancelled_at',
         'paid_at',
         'processing_at',
@@ -70,6 +79,10 @@ class Order extends Model
         static::creating(function (Order $order): void {
             if (blank($order->order_number)) {
                 $order->order_number = self::generateNumber();
+            }
+
+            if (filled($order->idempotency_key) && blank($order->idempotency_scope) && $order->user_id !== null) {
+                $order->idempotency_scope = 'u:'.$order->user_id;
             }
         });
     }
@@ -159,5 +172,22 @@ class Order extends Model
     public function canBePaid(): bool
     {
         return $this->status === OrderStatus::Pending;
+    }
+
+    /**
+     * @return array<string, string|null>
+     */
+    public function shipping(): array
+    {
+        return [
+            'name' => $this->shipping_name,
+            'phone' => $this->shipping_phone,
+            'address_line1' => $this->shipping_address_line1,
+            'address_line2' => $this->shipping_address_line2,
+            'city' => $this->shipping_city,
+            'state' => $this->shipping_state,
+            'postal_code' => $this->shipping_postal_code,
+            'country' => $this->shipping_country,
+        ];
     }
 }

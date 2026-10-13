@@ -23,12 +23,12 @@ class CheckoutIdempotencyTest extends TestCase
 
         Sanctum::actingAs($customer);
 
-        $first = $this->withHeaders(['Idempotency-Key' => 'shared-key-1'])->postJson('/api/checkout');
+        $first = $this->checkout([], ['Idempotency-Key' => 'shared-key-1']);
         $first->assertCreated();
 
         CartItem::factory()->for($customer->cart)->for(Product::factory()->priced('9.00')->withStock(5))->create(['quantity' => 1]);
 
-        $this->withHeaders(['Idempotency-Key' => 'shared-key-1'])->postJson('/api/checkout')
+        $this->checkout([], ['Idempotency-Key' => 'shared-key-1'])
             ->assertOk()
             ->assertJsonPath('message', 'Order already placed.')
             ->assertJsonPath('data.id', $first->json('data.id'));
@@ -47,11 +47,11 @@ class CheckoutIdempotencyTest extends TestCase
         CartItem::factory()->for(Cart::factory()->for($bob))->for($product)->create(['quantity' => 1]);
 
         Sanctum::actingAs($alice);
-        $aliceOrder = $this->withHeaders(['Idempotency-Key' => 'same-key-across-users'])->postJson('/api/checkout');
+        $aliceOrder = $this->checkout([], ['Idempotency-Key' => 'same-key-across-users']);
         $aliceOrder->assertCreated();
 
         Sanctum::actingAs($bob);
-        $bobOrder = $this->withHeaders(['Idempotency-Key' => 'same-key-across-users'])->postJson('/api/checkout');
+        $bobOrder = $this->checkout([], ['Idempotency-Key' => 'same-key-across-users']);
         $bobOrder->assertCreated();
 
         $this->assertNotSame($aliceOrder->json('data.id'), $bobOrder->json('data.id'));
@@ -69,7 +69,7 @@ class CheckoutIdempotencyTest extends TestCase
 
         Sanctum::actingAs($customer);
 
-        $this->postJson('/api/checkout')
+        $this->checkout()
             ->assertCreated()
             ->assertJsonPath('data.total', '11.00');
 

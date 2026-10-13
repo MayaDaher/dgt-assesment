@@ -32,7 +32,7 @@ class OrderPlacedEventTest extends TestCase
 
         Sanctum::actingAs($customer);
 
-        $orderId = $this->postJson('/api/checkout')->assertCreated()->json('data.id');
+        $orderId = $this->checkout()->assertCreated()->json('data.id');
 
         Event::assertDispatched(OrderPlaced::class, fn (OrderPlaced $event) => $event->orderId === $orderId);
     }
@@ -49,8 +49,8 @@ class OrderPlacedEventTest extends TestCase
 
         Sanctum::actingAs($customer);
 
-        $this->withHeaders(['Idempotency-Key' => 'order-placed-once'])->postJson('/api/checkout')->assertCreated();
-        $this->withHeaders(['Idempotency-Key' => 'order-placed-once'])->postJson('/api/checkout')->assertOk();
+        $this->checkout([], ['Idempotency-Key' => 'order-placed-once'])->assertCreated();
+        $this->checkout([], ['Idempotency-Key' => 'order-placed-once'])->assertOk();
 
         Event::assertDispatchedTimes(OrderPlaced::class, 1);
         $this->assertSame(1, Order::query()->count());
@@ -62,7 +62,7 @@ class OrderPlacedEventTest extends TestCase
 
         Sanctum::actingAs(User::factory()->create());
 
-        $this->postJson('/api/checkout')->assertUnprocessable();
+        $this->checkout()->assertUnprocessable();
 
         Event::assertNotDispatched(OrderPlaced::class);
     }

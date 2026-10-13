@@ -48,7 +48,7 @@ class CheckoutTest extends TestCase
     {
         $this->app['auth']->forgetGuards();
 
-        $this->postJson('/api/checkout')->assertUnauthorized();
+        $this->checkout()->assertUnauthorized();
         $this->getJson('/api/orders')->assertUnauthorized();
         $this->getJson('/api/orders/1')->assertUnauthorized();
         $this->postJson('/api/orders/1/cancel')->assertUnauthorized();
@@ -57,7 +57,7 @@ class CheckoutTest extends TestCase
 
     public function test_empty_cart_cannot_be_checked_out(): void
     {
-        $this->postJson('/api/checkout')
+        $this->checkout()
             ->assertUnprocessable()
             ->assertJsonPath('code', 'CART_EMPTY');
     }
@@ -67,7 +67,7 @@ class CheckoutTest extends TestCase
         [$first] = $this->addToCart('19.99', 2, 10, name: 'Headphones');
         [$second] = $this->addToCart('10.01', 1, 5, name: 'Cable');
 
-        $response = $this->postJson('/api/checkout', [
+        $response = $this->checkout([
             'subtotal' => '0.01',
             'total' => '0.01',
             'items' => [['product_id' => $first->id, 'price' => '0.01']],
@@ -83,6 +83,14 @@ class CheckoutTest extends TestCase
             ->assertJsonPath('data.total', '49.99')
             ->assertJsonPath('data.promotion', null)
             ->assertJsonPath('data.cancellable', true)
+            ->assertJsonPath('data.shipping.name', 'Maya Daher')
+            ->assertJsonPath('data.shipping.phone', '+961 70 123 456')
+            ->assertJsonPath('data.shipping.address_line1', 'Hamra St., Building 12, Floor 3')
+            ->assertJsonPath('data.shipping.address_line2', 'Apartment 5')
+            ->assertJsonPath('data.shipping.city', 'Beirut')
+            ->assertJsonPath('data.shipping.state', 'Beirut Governorate')
+            ->assertJsonPath('data.shipping.postal_code', '1103')
+            ->assertJsonPath('data.shipping.country', 'Lebanon')
             ->assertJsonCount(2, 'data.items')
             ->assertJsonFragment([
                 'product_name' => 'Headphones',
@@ -110,7 +118,7 @@ class CheckoutTest extends TestCase
         $this->addToCart('120.00', 1, 5);
         Cart::query()->where('user_id', $this->customer->id)->update(['promotion_id' => $promotion->id]);
 
-        $this->postJson('/api/checkout')
+        $this->checkout()
             ->assertCreated()
             ->assertJsonPath('data.subtotal', '120.00')
             ->assertJsonPath('data.discount', '24.00')
@@ -130,7 +138,7 @@ class CheckoutTest extends TestCase
         [$product] = $this->addToCart('50.00', 2, 5, name: 'Original Name');
         $originalSku = $product->sku;
 
-        $orderId = $this->postJson('/api/checkout')->assertCreated()->json('data.id');
+        $orderId = $this->checkout()->assertCreated()->json('data.id');
 
         $product->update(['name' => 'Renamed', 'sku' => 'CHANGED', 'price' => '9.99']);
 
@@ -149,7 +157,7 @@ class CheckoutTest extends TestCase
         [$product] = $this->addToCart('40.00', 1, 7);
         Cart::query()->where('user_id', $this->customer->id)->update(['promotion_id' => $promotion->id]);
 
-        $this->postJson('/api/checkout')
+        $this->checkout()
             ->assertUnprocessable()
             ->assertJsonPath('code', 'PROMOTION_MINIMUM_NOT_MET');
 
@@ -164,7 +172,7 @@ class CheckoutTest extends TestCase
         [$product] = $this->addToCart('10.00', 4, 10);
         $product->update(['stock_quantity' => 2]);
 
-        $this->postJson('/api/checkout')
+        $this->checkout()
             ->assertConflict()
             ->assertJsonPath('code', 'INSUFFICIENT_STOCK')
             ->assertJsonPath('details.available_quantity', 2);
@@ -179,7 +187,7 @@ class CheckoutTest extends TestCase
         [$product] = $this->addToCart('10.00', 1, 5);
         $product->update(['status' => ProductStatus::Inactive]);
 
-        $this->postJson('/api/checkout')
+        $this->checkout()
             ->assertUnprocessable()
             ->assertJsonPath('code', 'PRODUCT_UNAVAILABLE');
 
@@ -194,13 +202,13 @@ class CheckoutTest extends TestCase
 
         $this->addToCart('20.00', 1, 5);
         Cart::query()->where('user_id', $this->customer->id)->update(['promotion_id' => $promotion->id]);
-        $this->postJson('/api/checkout')->assertCreated();
+        $this->checkout()->assertCreated();
 
         $this->addToCart('20.00', 1, 5, user: $other);
         Cart::query()->where('user_id', $other->id)->update(['promotion_id' => $promotion->id]);
         Sanctum::actingAs($other);
 
-        $this->postJson('/api/checkout')
+        $this->checkout()
             ->assertUnprocessable()
             ->assertJsonPath('code', 'PROMOTION_USAGE_LIMIT_REACHED');
 
@@ -212,12 +220,12 @@ class CheckoutTest extends TestCase
     {
         [$product] = $this->addToCart('25.00', 2, 10);
 
-        $first = $this->withHeaders(['Idempotency-Key' => 'retry-order-1'])->postJson('/api/checkout');
+        $first = $this->checkout([], ['Idempotency-Key' => 'retry-order-1']);
         $first->assertCreated()->assertJsonPath('data.total', '50.00');
 
         $this->addToCart('99.00', 1, 10);
 
-        $second = $this->withHeaders(['Idempotency-Key' => 'retry-order-1'])->postJson('/api/checkout');
+        $second = $this->checkout([], ['Idempotency-Key' => 'retry-order-1']);
         $second
             ->assertOk()
             ->assertJsonPath('message', 'Order already placed.')
@@ -230,7 +238,7 @@ class CheckoutTest extends TestCase
 
     public function test_short_idempotency_key_is_rejected(): void
     {
-        $this->withHeaders(['Idempotency-Key' => 'short'])->postJson('/api/checkout')
+        $this->checkout([], ['Idempotency-Key' => 'short'])
             ->assertUnprocessable()
             ->assertJsonValidationErrors(['idempotency_key']);
     }

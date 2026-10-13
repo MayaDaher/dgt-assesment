@@ -101,7 +101,7 @@ class StockReservationTest extends TestCase
         $this->postJson('/api/cart/items', ['product_id' => $product->id, 'quantity' => 4])->assertCreated();
         $this->assertSame(5, $product->fresh()->stock_quantity);
 
-        $this->postJson('/api/checkout')->assertCreated();
+        $this->checkout()->assertCreated();
 
         $this->assertSame(1, $product->fresh()->stock_quantity);
         $this->assertDatabaseCount('stock_reservations', 0);

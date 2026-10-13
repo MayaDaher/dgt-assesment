@@ -105,6 +105,14 @@ class Promotion extends Model
     }
 
     /**
+     * @return HasMany<PromotionAudit, $this>
+     */
+    public function audits(): HasMany
+    {
+        return $this->hasMany(PromotionAudit::class);
+    }
+
+    /**
      * @return HasMany<Order, $this>
      */
     public function orders(): HasMany

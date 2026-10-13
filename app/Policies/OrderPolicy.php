@@ -19,7 +19,7 @@ class OrderPolicy
 
     public function view(User $user, Order $order): bool
     {
-        return $user->id === $order->user_id || $user->isAdmin();
+        return $user->isAdmin() || $this->owns($user, $order);
     }
 
     public function update(User $user, Order $order): bool
@@ -29,10 +29,15 @@ class OrderPolicy
 
     public function pay(User $user, Order $order): bool
     {
-        return $user->id === $order->user_id;
+        return $this->owns($user, $order);
     }
 
     public function cancel(User $user, Order $order): bool
+    {
+        return $this->owns($user, $order);
+    }
+
+    private function owns(User $user, Order $order): bool
     {
         return $user->id === $order->user_id;
     }

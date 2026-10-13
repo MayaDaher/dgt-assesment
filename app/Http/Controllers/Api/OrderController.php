@@ -10,6 +10,7 @@ use App\Models\Order;
 use App\Services\Orders\CancelOrderService;
 use App\Services\Orders\CapturePaymentService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class OrderController extends Controller
 {
@@ -39,17 +40,17 @@ class OrderController extends Controller
     {
         $this->authorize('view', $order);
 
-        return ApiResponse::success(new OrderResource($order->loadMissing(['items', 'statusChanges'])));
+        return ApiResponse::success(new OrderResource($order->loadMissing(['items', 'user', 'statusChanges'])));
     }
 
-    public function pay(Order $order): JsonResponse
+    public function pay(Request $request, Order $order): JsonResponse
     {
         $this->authorize('pay', $order);
 
-        $result = $this->payments->capture($order, $order->user_id);
+        $result = $this->payments->capture($order, $request->user()->id);
 
         return ApiResponse::success(
-            new OrderResource($result->order->loadMissing(['items', 'statusChanges'])),
+            new OrderResource($result->order->loadMissing(['items', 'user', 'statusChanges'])),
             $result->replayed ? 'Order already paid.' : 'Payment captured.',
         );
     }
@@ -61,7 +62,7 @@ class OrderController extends Controller
         $result = $this->canceller->cancel($order);
 
         return ApiResponse::success(
-            new OrderResource($result->order->loadMissing(['items', 'statusChanges'])),
+            new OrderResource($result->order->loadMissing(['items', 'user', 'statusChanges'])),
             $result->replayed ? 'Order already cancelled.' : 'Order cancelled.',
         );
     }

@@ -45,7 +45,7 @@ class CancelOrderTest extends TestCase
         }
 
         Sanctum::actingAs($owner);
-        $orderId = $this->postJson('/api/checkout')->assertCreated()->json('data.id');
+        $orderId = $this->checkout()->assertCreated()->json('data.id');
 
         return [$product->fresh(), $orderId];
     }
@@ -218,7 +218,7 @@ class CancelOrderTest extends TestCase
         CartItem::factory()->for($cart)->for($product)->create(['quantity' => 1]);
         $cart->update(['promotion_id' => $promotion->id]);
 
-        $this->postJson('/api/checkout')
+        $this->checkout()
             ->assertCreated()
             ->assertJsonPath('data.promotion.code', 'ONCEMORE')
             ->assertJsonPath('data.discount', '10.00');

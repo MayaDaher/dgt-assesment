@@ -107,7 +107,7 @@ class ProductAuditTest extends TestCase
         CartItem::factory()->for($cart)->for($product)->create(['quantity' => 2]);
 
         Sanctum::actingAs($customer);
-        $orderId = $this->postJson('/api/checkout')->assertCreated()->json('data.id');
+        $orderId = $this->checkout()->assertCreated()->json('data.id');
         $this->assertDatabaseCount('product_audits', 0);
         $this->assertSame(3, $product->fresh()->stock_quantity);
 

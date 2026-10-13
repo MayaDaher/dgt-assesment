@@ -48,7 +48,7 @@ class OrderLifecycleTest extends TestCase
         $cart = Cart::query()->firstOrCreate(['user_id' => $this->customer->id]);
         CartItem::factory()->for($cart)->for($product)->create(['quantity' => 1]);
 
-        $orderId = $this->postJson('/api/checkout')->assertCreated()->json('data.id');
+        $orderId = $this->checkout()->assertCreated()->json('data.id');
 
         return [$product->fresh(), $orderId];
     }

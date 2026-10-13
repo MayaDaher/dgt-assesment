@@ -208,7 +208,7 @@ class ScopedPromotionTest extends TestCase
         $this->add($jacket);
         $this->postJson('/api/cart/promotion', ['code' => 'HEAD10'])->assertOk();
 
-        $this->postJson('/api/checkout')
+        $this->checkout()
             ->assertCreated()
             ->assertJsonPath('data.subtotal', '180.00')
             ->assertJsonPath('data.discount', '10.00')

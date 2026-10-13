@@ -35,8 +35,7 @@ class PromotionEligibility
 
     /**
      * Returns the discount in cents when the promotion can be used.
-     * Guests (`$user` null) skip the per-customer usage limit; checkout re-checks
-     * once the customer is authenticated.
+     * Guests skip the per-customer usage limit until they sign in and check out.
      *
      * @param  list<CartLine>  $lines
      *

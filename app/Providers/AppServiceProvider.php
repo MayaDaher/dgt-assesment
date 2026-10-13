@@ -6,7 +6,9 @@ use App\Events\OrderPlaced;
 use App\Listeners\SendOrderPlacedNotification;
 use App\Models\Category;
 use App\Models\Product;
+use App\Models\Promotion;
 use App\Observers\ProductObserver;
+use App\Observers\PromotionObserver;
 use App\Services\Catalog\CatalogCache;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
@@ -35,6 +37,7 @@ class AppServiceProvider extends ServiceProvider
         $this->invalidateCatalogCacheOnWrite();
 
         Product::observe(ProductObserver::class);
+        Promotion::observe(PromotionObserver::class);
 
         Event::listen(OrderPlaced::class, SendOrderPlacedNotification::class);
     }
