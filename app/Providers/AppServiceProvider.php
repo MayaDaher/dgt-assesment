@@ -3,6 +3,8 @@
 namespace App\Providers;
 
 use App\Events\OrderPlaced;
+use App\Events\OrderStatusChanged;
+use App\Listeners\LogOrderStatusChanged;
 use App\Listeners\SendOrderPlacedNotification;
 use App\Models\Category;
 use App\Models\Product;
@@ -40,6 +42,7 @@ class AppServiceProvider extends ServiceProvider
         Promotion::observe(PromotionObserver::class);
 
         Event::listen(OrderPlaced::class, SendOrderPlacedNotification::class);
+        Event::listen(OrderStatusChanged::class, LogOrderStatusChanged::class);
     }
 
     private function configurePasswordRules(): void
