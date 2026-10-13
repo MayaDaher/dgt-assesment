@@ -21,7 +21,8 @@ use Illuminate\Support\Facades\DB;
  * (HTTP 200, no extra inventory, no extra coupon credit).
  *
  * A cancelled order releases its promotional usage so the customer can use the
- * code again, up to the original limits.
+ * code again, up to the original limits. Unpaid pending expiry uses this same
+ * path so inventory cannot leak.
  */
 class CancelOrderService
 {
@@ -30,11 +31,14 @@ class CancelOrderService
         private readonly OrderStatusRecorder $recorder,
     ) {}
 
-    public function cancel(Order $order): CancelOrderResult
-    {
+    public function cancel(
+        Order $order,
+        OrderStatusSource $source = OrderStatusSource::Cancel,
+        ?int $actorId = null,
+    ): CancelOrderResult {
         $from = null;
 
-        $result = DB::transaction(function () use ($order, &$from) {
+        $result = DB::transaction(function () use ($order, $source, $actorId, &$from) {
             /** @var Order $locked */
             $locked = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
 
@@ -42,7 +46,13 @@ class CancelOrderService
                 return new CancelOrderResult($locked->loadMissing(['items', 'statusChanges']), replayed: true);
             }
 
-            if (! $locked->canBeCancelled()) {
+            $allowed = $this->cancellableFrom($source);
+
+            if (! in_array($locked->status, $allowed, true)) {
+                if ($source === OrderStatusSource::Expiry) {
+                    return new CancelOrderResult($locked->loadMissing(['items', 'statusChanges']), replayed: true);
+                }
+
                 throw new InvalidOrderStatusException($locked->status);
             }
 
@@ -50,7 +60,7 @@ class CancelOrderService
 
             $affected = Order::query()
                 ->whereKey($locked->id)
-                ->whereIn('status', array_map(fn (OrderStatus $status) => $status->value, OrderStatus::cancellable()))
+                ->whereIn('status', array_map(fn (OrderStatus $status) => $status->value, $allowed))
                 ->update([
                     'status' => OrderStatus::Cancelled->value,
                     'cancelled_at' => now(),
@@ -60,7 +70,7 @@ class CancelOrderService
             if ($affected === 0) {
                 $locked->refresh();
 
-                if ($locked->status === OrderStatus::Cancelled) {
+                if ($locked->status === OrderStatus::Cancelled || $source === OrderStatusSource::Expiry) {
                     return new CancelOrderResult($locked->loadMissing(['items', 'statusChanges']), replayed: true);
                 }
 
@@ -75,8 +85,8 @@ class CancelOrderService
                 $fresh,
                 $from,
                 OrderStatus::Cancelled,
-                OrderStatusSource::Cancel,
-                $fresh->user_id,
+                $source,
+                $source === OrderStatusSource::Expiry ? null : ($actorId ?? $fresh->user_id),
             );
 
             return new CancelOrderResult($fresh->load('statusChanges'));
@@ -88,11 +98,29 @@ class CancelOrderService
                 $result->order->id,
                 $from,
                 OrderStatus::Cancelled,
-                OrderStatusSource::Cancel,
+                $source,
             );
         }
 
         return $result;
+    }
+
+    /**
+     * System timeout for unpaid pending orders. No-op if the customer already paid or cancelled.
+     */
+    public function expireUnpaid(Order $order): CancelOrderResult
+    {
+        return $this->cancel($order, OrderStatusSource::Expiry);
+    }
+
+    /**
+     * @return list<OrderStatus>
+     */
+    private function cancellableFrom(OrderStatusSource $source): array
+    {
+        return $source === OrderStatusSource::Expiry
+            ? [OrderStatus::Pending]
+            : OrderStatus::cancellable();
     }
 
     private function restoreStock(Order $order): void

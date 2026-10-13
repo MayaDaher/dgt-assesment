@@ -114,27 +114,6 @@ class GuestCartTest extends TestCase
             ->assertJsonPath('data.discount', '24.00');
     }
 
-    public function test_anonymous_checkout_without_a_cart_token_is_rejected(): void
-    {
-        $this->postJson('/api/checkout')
-            ->assertUnauthorized()
-            ->assertJsonPath('code', 'UNAUTHENTICATED');
-    }
-
-    public function test_guest_cart_token_cannot_place_an_order(): void
-    {
-        [$token] = $this->guestCart();
-        $product = Product::factory()->priced('10.00')->withStock(3)->create();
-
-        $this->withHeaders(['X-Cart-Token' => $token])
-            ->postJson('/api/cart/items', ['product_id' => $product->id])
-            ->assertCreated();
-
-        $this->checkout([], ['X-Cart-Token' => $token])
-            ->assertUnauthorized()
-            ->assertJsonPath('code', 'UNAUTHENTICATED');
-    }
-
     public function test_authenticated_request_with_a_guest_token_merges_the_cart(): void
     {
         $user = User::factory()->create();

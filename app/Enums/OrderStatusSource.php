@@ -8,6 +8,7 @@ enum OrderStatusSource: string
     case Payment = 'payment';
     case Admin = 'admin';
     case Cancel = 'cancel';
+    case Expiry = 'expiry';
 
     /**
      * @return list<string>

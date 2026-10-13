@@ -46,6 +46,7 @@ class Order extends Model
         'processing_at',
         'shipped_at',
         'delivered_at',
+        'payment_due_at',
     ];
 
     /**
@@ -71,6 +72,7 @@ class Order extends Model
             'processing_at' => 'datetime',
             'shipped_at' => 'datetime',
             'delivered_at' => 'datetime',
+            'payment_due_at' => 'datetime',
         ];
     }
 
@@ -84,12 +86,24 @@ class Order extends Model
             if (filled($order->idempotency_key) && blank($order->idempotency_scope) && $order->user_id !== null) {
                 $order->idempotency_scope = 'u:'.$order->user_id;
             }
+
+            $pending = $order->status === OrderStatus::Pending
+                || $order->status === OrderStatus::Pending->value;
+
+            if ($pending && $order->payment_due_at === null) {
+                $order->payment_due_at = now()->addMinutes(self::unpaidPendingMinutes());
+            }
         });
     }
 
     public static function generateNumber(): string
     {
         return 'ORD-'.now()->format('Ymd').'-'.Str::upper(Str::random(8));
+    }
+
+    public static function unpaidPendingMinutes(): int
+    {
+        return max(1, (int) config('orders.unpaid_pending_minutes', 30));
     }
 
     /**
@@ -162,6 +176,18 @@ class Order extends Model
                         ->orWhereRaw("name LIKE ? ESCAPE '!'", [$like]);
                 });
         });
+    }
+
+    /**
+     * @param  Builder<Order>  $query
+     */
+    #[Scope]
+    protected function unpaidExpired(Builder $query): void
+    {
+        $query
+            ->where('status', OrderStatus::Pending)
+            ->whereNotNull('payment_due_at')
+            ->where('payment_due_at', '<=', now());
     }
 
     public function canBeCancelled(): bool

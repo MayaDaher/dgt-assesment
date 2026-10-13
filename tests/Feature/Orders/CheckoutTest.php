@@ -110,6 +110,8 @@ class CheckoutTest extends TestCase
         $this->assertSame(8, $first->fresh()->stock_quantity);
         $this->assertSame(4, $second->fresh()->stock_quantity);
         $this->assertDatabaseCount('orders', 1);
+        $this->assertNotNull($response->json('data.payment_due_at'));
+        $this->assertNotNull(Order::query()->value('payment_due_at'));
     }
 
     public function test_checkout_applies_a_promotion_and_records_usage(): void

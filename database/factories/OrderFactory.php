@@ -42,6 +42,7 @@ class OrderFactory extends Factory
             'processing_at' => null,
             'shipped_at' => null,
             'delivered_at' => null,
+            'payment_due_at' => now()->addMinutes(30),
         ];
     }
 

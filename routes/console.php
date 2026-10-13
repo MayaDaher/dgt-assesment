@@ -31,3 +31,4 @@ Artisan::command('user:role {email} {role=admin}', function (string $email, stri
 
 Schedule::command('sanctum:prune-expired --hours=24')->daily();
 Schedule::command('cart:expire-reservations')->everyMinute();
+Schedule::command('orders:expire-pending')->everyMinute();

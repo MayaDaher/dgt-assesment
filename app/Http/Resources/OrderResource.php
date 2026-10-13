@@ -42,6 +42,7 @@ class OrderResource extends JsonResource
             ],
             'payable' => $this->canBePaid(),
             'cancellable' => $this->canBeCancelled(),
+            'payment_due_at' => $this->payment_due_at?->toIso8601String(),
             'allowed_statuses' => $this->when(
                 $admin,
                 fn () => array_map(
