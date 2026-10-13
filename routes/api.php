@@ -44,6 +44,8 @@ Route::middleware(['optional.sanctum', 'throttle:promotions'])
     ->name('promotions.validate');
 
 Route::middleware('auth:sanctum')->group(function () {
+    Route::get('/checkout/shipping', [CheckoutController::class, 'lastShipping'])
+        ->name('checkout.shipping');
     Route::post('/checkout', [CheckoutController::class, 'store'])
         ->middleware('throttle:checkout')
         ->name('checkout.store');

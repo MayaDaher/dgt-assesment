@@ -201,6 +201,22 @@ class Order extends Model
     }
 
     /**
+     * Last typed fulfilment address for the customer, taken from their newest order.
+     * There is no address-book table: checkout still snapshots whatever the client sends.
+     *
+     * @return array<string, string|null>|null
+     */
+    public static function latestShippingFor(User $user): ?array
+    {
+        return static::query()
+            ->where('user_id', $user->id)
+            ->whereNotNull('shipping_name')
+            ->latest('id')
+            ->first()
+            ?->shipping();
+    }
+
+    /**
      * @return array<string, string|null>
      */
     public function shipping(): array

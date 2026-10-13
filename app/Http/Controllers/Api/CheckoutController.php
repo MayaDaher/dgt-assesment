@@ -6,9 +6,11 @@ use App\Http\Controllers\Controller;
 use App\Http\Requests\Checkout\PlaceOrderRequest;
 use App\Http\Resources\OrderResource;
 use App\Http\Responses\ApiResponse;
+use App\Models\Order;
 use App\Services\Cart\CartService;
 use App\Services\Checkout\CheckoutService;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class CheckoutController extends Controller
 {
@@ -16,6 +18,17 @@ class CheckoutController extends Controller
         private readonly CheckoutService $checkout,
         private readonly CartService $carts,
     ) {}
+
+    /**
+     * Prefill for the checkout form. Same shape as POST /checkout's `shipping`
+     * object, copied from the customer's most recent order snapshot.
+     */
+    public function lastShipping(Request $request): JsonResponse
+    {
+        return ApiResponse::success([
+            'shipping' => Order::latestShippingFor($request->user()),
+        ]);
+    }
 
     public function store(PlaceOrderRequest $request): JsonResponse
     {
