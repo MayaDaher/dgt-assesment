@@ -3,7 +3,7 @@
 namespace Tests\Feature\Orders;
 
 use App\Events\OrderPlaced;
-use App\Listeners\SendOrderPlacedNotification;
+use App\Listeners\LogOrderPlaced;
 use App\Models\Cart;
 use App\Models\CartItem;
 use App\Models\Order;
@@ -67,7 +67,7 @@ class OrderPlacedEventTest extends TestCase
         Event::assertNotDispatched(OrderPlaced::class);
     }
 
-    public function test_the_notification_listener_is_queued(): void
+    public function test_the_listener_is_queued(): void
     {
         $this->assertTrue(Event::hasListeners(OrderPlaced::class));
 
@@ -77,7 +77,7 @@ class OrderPlacedEventTest extends TestCase
         OrderPlaced::dispatch($order->id);
 
         Queue::assertPushed(CallQueuedListener::class, function (CallQueuedListener $job) {
-            return $job->class === SendOrderPlacedNotification::class;
+            return $job->class === LogOrderPlaced::class;
         });
     }
 }

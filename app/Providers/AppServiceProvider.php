@@ -4,14 +4,14 @@ namespace App\Providers;
 
 use App\Events\OrderPlaced;
 use App\Events\OrderStatusChanged;
+use App\Listeners\LogOrderPlaced;
 use App\Listeners\LogOrderStatusChanged;
-use App\Listeners\SendOrderPlacedNotification;
 use App\Models\Category;
 use App\Models\Product;
 use App\Models\Promotion;
-use App\Observers\ProductObserver;
-use App\Observers\PromotionObserver;
 use App\Services\Catalog\CatalogCache;
+use App\Services\Catalog\ProductAuditLogger;
+use App\Services\Promotions\PromotionAuditLogger;
 use Illuminate\Cache\RateLimiting\Limit;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Event;
@@ -38,10 +38,10 @@ class AppServiceProvider extends ServiceProvider
         $this->configureRateLimiting();
         $this->invalidateCatalogCacheOnWrite();
 
-        Product::observe(ProductObserver::class);
-        Promotion::observe(PromotionObserver::class);
+        Product::updated(fn (Product $product) => app(ProductAuditLogger::class)->record($product));
+        Promotion::updated(fn (Promotion $promotion) => app(PromotionAuditLogger::class)->record($promotion));
 
-        Event::listen(OrderPlaced::class, SendOrderPlacedNotification::class);
+        Event::listen(OrderPlaced::class, LogOrderPlaced::class);
         Event::listen(OrderStatusChanged::class, LogOrderStatusChanged::class);
     }
 

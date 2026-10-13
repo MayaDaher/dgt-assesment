@@ -24,6 +24,7 @@ use App\Services\Cart\CartLine;
 use App\Services\Cart\CartSummary;
 use App\Services\Catalog\CatalogCache;
 use App\Services\Inventory\StockReservationService;
+use App\Services\Orders\OrderMutationResult;
 use App\Services\Orders\OrderStatusRecorder;
 use App\Services\Promotions\PromotionEligibility;
 use App\Support\Money;
@@ -57,7 +58,7 @@ class CheckoutService
         ShippingAddress $shipping,
         User $user,
         ?string $idempotencyKey = null,
-    ): CheckoutResult {
+    ): OrderMutationResult {
         $key = filled($idempotencyKey) ? trim((string) $idempotencyKey) : null;
         $scope = 'u:'.$user->id;
 
@@ -68,7 +69,7 @@ class CheckoutService
                 $replayed = $this->existingOrder($scope, $key);
 
                 if ($replayed !== null) {
-                    return new CheckoutResult($replayed, replayed: true);
+                    return new OrderMutationResult($replayed, replayed: true);
                 }
 
                 if ($locked === null || $locked->items()->doesntExist()) {
@@ -94,7 +95,7 @@ class CheckoutService
                 $locked->items()->delete();
                 $locked->update(['promotion_id' => null]);
 
-                return new CheckoutResult($order->load(['items', 'statusChanges']));
+                return new OrderMutationResult($order->load(['items', 'statusChanges']));
             });
         } catch (UniqueConstraintViolationException $exception) {
             // Two retries with the same key can both pass the SELECT and then collide on insert.
@@ -102,7 +103,7 @@ class CheckoutService
             $replayed = $this->existingOrder($scope, $key);
 
             if ($replayed !== null && $this->isIdempotencyCollision($exception)) {
-                return new CheckoutResult($replayed, replayed: true);
+                return new OrderMutationResult($replayed, replayed: true);
             }
 
             throw $exception;

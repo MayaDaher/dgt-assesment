@@ -19,7 +19,7 @@ class CapturePaymentService
 {
     public function __construct(private readonly OrderStatusRecorder $recorder) {}
 
-    public function capture(Order $order, int $actorId): CapturePaymentResult
+    public function capture(Order $order, int $actorId): OrderMutationResult
     {
         $from = null;
 
@@ -28,7 +28,7 @@ class CapturePaymentService
             $locked = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
 
             if ($locked->status === OrderStatus::Paid) {
-                return new CapturePaymentResult($locked->loadMissing(['items', 'statusChanges']), replayed: true);
+                return new OrderMutationResult($locked->loadMissing(['items', 'statusChanges']), replayed: true);
             }
 
             if ($locked->status !== OrderStatus::Pending) {
@@ -38,7 +38,7 @@ class CapturePaymentService
             $from = $locked->status;
             $this->recorder->transition($locked, OrderStatus::Paid, OrderStatusSource::Payment, $actorId);
 
-            return new CapturePaymentResult($locked->fresh()->loadMissing(['items', 'statusChanges']));
+            return new OrderMutationResult($locked->fresh()->loadMissing(['items', 'statusChanges']));
         });
 
         if (! $result->replayed && $from !== null) {

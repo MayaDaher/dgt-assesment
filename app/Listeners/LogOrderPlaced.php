@@ -13,7 +13,7 @@ use Illuminate\Support\Facades\Log;
  * Replace the log with mail, stock-reservation exports, or a warehouse push
  * without changing CheckoutService.
  */
-class SendOrderPlacedNotification implements ShouldQueue
+class LogOrderPlaced implements ShouldQueue
 {
     use InteractsWithQueue;
 

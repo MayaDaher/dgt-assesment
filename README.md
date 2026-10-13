@@ -2,16 +2,6 @@
 
 Laravel API for the e-commerce technical assessment.
 
-## Hello World
-
-`GET /api/hello`
-
-```json
-{
-    "message": "Hello World"
-}
-```
-
 ## Setup
 
 ```bash

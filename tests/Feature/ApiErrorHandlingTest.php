@@ -44,7 +44,7 @@ class ApiErrorHandlingTest extends TestCase
 
     public function test_unsupported_method_returns_json_405(): void
     {
-        $this->post('/api/hello')
+        $this->post('/api/products')
             ->assertMethodNotAllowed()
             ->assertJson(['success' => false, 'code' => 'METHOD_NOT_ALLOWED']);
     }

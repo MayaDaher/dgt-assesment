@@ -35,7 +35,7 @@ class CancelOrderService
         Order $order,
         OrderStatusSource $source = OrderStatusSource::Cancel,
         ?int $actorId = null,
-    ): CancelOrderResult {
+    ): OrderMutationResult {
         $from = null;
 
         $result = DB::transaction(function () use ($order, $source, $actorId, &$from) {
@@ -43,14 +43,14 @@ class CancelOrderService
             $locked = Order::query()->whereKey($order->id)->lockForUpdate()->firstOrFail();
 
             if ($locked->status === OrderStatus::Cancelled) {
-                return new CancelOrderResult($locked->loadMissing(['items', 'statusChanges']), replayed: true);
+                return new OrderMutationResult($locked->loadMissing(['items', 'statusChanges']), replayed: true);
             }
 
             $allowed = $this->cancellableFrom($source);
 
             if (! in_array($locked->status, $allowed, true)) {
                 if ($source === OrderStatusSource::Expiry) {
-                    return new CancelOrderResult($locked->loadMissing(['items', 'statusChanges']), replayed: true);
+                    return new OrderMutationResult($locked->loadMissing(['items', 'statusChanges']), replayed: true);
                 }
 
                 throw new InvalidOrderStatusException($locked->status);
@@ -71,7 +71,7 @@ class CancelOrderService
                 $locked->refresh();
 
                 if ($locked->status === OrderStatus::Cancelled || $source === OrderStatusSource::Expiry) {
-                    return new CancelOrderResult($locked->loadMissing(['items', 'statusChanges']), replayed: true);
+                    return new OrderMutationResult($locked->loadMissing(['items', 'statusChanges']), replayed: true);
                 }
 
                 throw new InvalidOrderStatusException($locked->status);
@@ -89,7 +89,7 @@ class CancelOrderService
                 $source === OrderStatusSource::Expiry ? null : ($actorId ?? $fresh->user_id),
             );
 
-            return new CancelOrderResult($fresh->load('statusChanges'));
+            return new OrderMutationResult($fresh->load('statusChanges'));
         });
 
         if (! $result->replayed) {
@@ -108,7 +108,7 @@ class CancelOrderService
     /**
      * System timeout for unpaid pending orders. No-op if the customer already paid or cancelled.
      */
-    public function expireUnpaid(Order $order): CancelOrderResult
+    public function expireUnpaid(Order $order): OrderMutationResult
     {
         return $this->cancel($order, OrderStatusSource::Expiry);
     }
