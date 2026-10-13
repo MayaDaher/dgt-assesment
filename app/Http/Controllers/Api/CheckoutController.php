@@ -36,6 +36,7 @@ class CheckoutController extends Controller
             cart: $this->carts->resolve($request, createIfMissing: false),
             shipping: $request->shipping(),
             user: $request->user(),
+            expectedTotal: $request->expectedTotal(),
             idempotencyKey: $request->idempotencyKey(),
         );
 

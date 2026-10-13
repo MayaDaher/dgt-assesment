@@ -26,7 +26,7 @@ class CheckoutShippingTest extends TestCase
 
         $this->postJson('/api/checkout')
             ->assertUnprocessable()
-            ->assertJsonValidationErrors(['shipping']);
+            ->assertJsonValidationErrors(['shipping', 'expected_total']);
     }
 
     public function test_shipping_is_snapshotted_and_not_rewritten_on_idempotent_retry(): void

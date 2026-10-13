@@ -184,12 +184,22 @@ class CheckoutConcurrencyTest extends TestCase
         $checkout = $this->app->make(CheckoutService::class);
 
         $shipping = ShippingAddress::fromArray($this->shippingPayload()['shipping']);
-        $first = $checkout->place(Cart::query()->where('user_id', $buyerA->id)->firstOrFail(), $shipping, $buyerA);
+        $first = $checkout->place(
+            Cart::query()->where('user_id', $buyerA->id)->firstOrFail(),
+            $shipping,
+            $buyerA,
+            expectedTotal: '200.00',
+        );
         $this->assertSame(OrderStatus::Pending, $first->order->status);
         $this->assertSame(1, $product->fresh()->stock_quantity);
 
         try {
-            $checkout->place(Cart::query()->where('user_id', $buyerB->id)->firstOrFail(), $shipping, $buyerB);
+            $checkout->place(
+                Cart::query()->where('user_id', $buyerB->id)->firstOrFail(),
+                $shipping,
+                $buyerB,
+                expectedTotal: '150.00',
+            );
             $this->fail('The second overlapping checkout should have been rejected.');
         } catch (InsufficientStockException $exception) {
             $this->assertSame('INSUFFICIENT_STOCK', $exception->errorCode());

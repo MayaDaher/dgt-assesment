@@ -7,9 +7,11 @@ use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
 /**
- * Checkout accepts no trusted money fields. Any price or total in the body is ignored.
- * Clients may send `Idempotency-Key` so a retried request cannot create a second order.
- * Shipping is snapshotted onto the order; later profile changes cannot rewrite it.
+ * Checkout does not trust client money fields as the charge (`price`, `subtotal`, `total`
+ * are ignored). `expected_total` is a confirmation of the last displayed cart total, not
+ * the amount to bill. Shipping is snapshotted onto the order; later profile edits cannot
+ * rewrite it. Clients may send `Idempotency-Key` so a retried request cannot create a
+ * second order.
  */
 class PlaceOrderRequest extends FormRequest
 {
@@ -25,6 +27,7 @@ class PlaceOrderRequest extends FormRequest
     {
         return [
             'idempotency_key' => ['sometimes', 'nullable', 'string', 'min:8', 'max:100'],
+            'expected_total' => ['required', 'decimal:0,2', 'min:0', 'max:9999999999.99'],
             'shipping' => ['required', 'array'],
             'shipping.name' => ['required', 'string', 'max:100'],
             'shipping.phone' => ['required', 'string', 'max:30'],
@@ -51,6 +54,11 @@ class PlaceOrderRequest extends FormRequest
         $key = $this->validated('idempotency_key') ?? null;
 
         return filled($key) ? (string) $key : null;
+    }
+
+    public function expectedTotal(): string
+    {
+        return (string) $this->validated('expected_total');
     }
 
     public function shipping(): ShippingAddress

@@ -2,6 +2,9 @@
 
 namespace Tests;
 
+use App\Models\Cart;
+use App\Services\Cart\CartCalculator;
+use App\Support\Money;
 use Illuminate\Foundation\Testing\TestCase as BaseTestCase;
 use Illuminate\Testing\TestResponse;
 
@@ -33,11 +36,32 @@ abstract class TestCase extends BaseTestCase
      */
     protected function checkout(array $payload = [], array $headers = []): TestResponse
     {
-        return $this->json(
-            'POST',
-            '/api/checkout',
-            array_replace_recursive($this->shippingPayload(), $payload),
-            $headers,
-        );
+        $body = array_replace_recursive($this->shippingPayload(), $payload);
+
+        if (! array_key_exists('expected_total', $body)) {
+            $body['expected_total'] = $this->displayedCartTotal();
+        }
+
+        return $this->json('POST', '/api/checkout', $body, $headers);
+    }
+
+    /**
+     * Payable total a real client would copy from GET /cart (`data.total`).
+     */
+    protected function displayedCartTotal(): string
+    {
+        $user = $this->app['auth']->user();
+
+        if ($user === null) {
+            return '0.00';
+        }
+
+        $cart = Cart::query()->where('user_id', $user->id)->first();
+
+        if ($cart === null) {
+            return '0.00';
+        }
+
+        return Money::format(app(CartCalculator::class)->summarize($cart)->totalCents());
     }
 }

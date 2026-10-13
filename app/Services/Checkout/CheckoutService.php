@@ -11,6 +11,7 @@ use App\Events\OrderPlaced;
 use App\Exceptions\Cart\CartNotReadyException;
 use App\Exceptions\Cart\EmptyCartException;
 use App\Exceptions\Catalog\ProductUnavailableException;
+use App\Exceptions\Checkout\PriceChangedException;
 use App\Exceptions\Inventory\InsufficientStockException;
 use App\Exceptions\Promotion\PromotionException;
 use App\Models\Cart;
@@ -36,8 +37,10 @@ use Illuminate\Support\Facades\DB;
 /**
  * Places an order from the customer's cart inside one database transaction.
  *
- * Prices, discounts and totals are always recalculated here. Concurrent checkouts
- * lock product rows in id order, then decrement stock only when enough remains
+ * Prices, discounts and totals are always recalculated here. The client must send
+ * `expected_total` matching that live payable total (cents compare); a mismatch is
+ * 409 PRICE_CHANGED and does not create an order. Concurrent checkouts lock product
+ * rows in id order, then decrement stock only when enough remains
  * (`WHERE stock_quantity >= quantity`), so two buyers cannot push inventory below zero.
  *
  * Cart reservations are released after the decrement so the same units are not
@@ -57,13 +60,14 @@ class CheckoutService
         Cart $cart,
         ShippingAddress $shipping,
         User $user,
+        string $expectedTotal,
         ?string $idempotencyKey = null,
     ): OrderMutationResult {
         $key = filled($idempotencyKey) ? trim((string) $idempotencyKey) : null;
         $scope = 'u:'.$user->id;
 
         try {
-            $result = DB::transaction(function () use ($cart, $shipping, $user, $key, $scope) {
+            $result = DB::transaction(function () use ($cart, $shipping, $user, $expectedTotal, $key, $scope) {
                 $locked = Cart::query()->whereKey($cart->id)->lockForUpdate()->first();
 
                 $replayed = $this->existingOrder($scope, $key);
@@ -78,6 +82,7 @@ class CheckoutService
 
                 $summary = $this->summarizeLockedCart($locked, $user);
                 $this->assertReady($summary);
+                $this->assertExpectedTotal($summary, $expectedTotal);
 
                 $this->decrementStock($summary);
                 $this->reservations->release($locked);
@@ -211,6 +216,23 @@ class CheckoutService
         }
 
         throw new CartNotReadyException($issues);
+    }
+
+    private function assertExpectedTotal(CartSummary $summary, string $expectedTotal): void
+    {
+        $expectedCents = Money::toCents($expectedTotal);
+        $currentCents = $summary->totalCents();
+
+        if ($expectedCents === $currentCents) {
+            return;
+        }
+
+        throw new PriceChangedException(
+            $expectedCents,
+            $currentCents,
+            $summary->subtotalCents,
+            $summary->discountCents,
+        );
     }
 
     private function decrementStock(CartSummary $summary): void
